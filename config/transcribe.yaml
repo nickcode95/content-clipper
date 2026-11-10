@@ -1,0 +1,8 @@
+# CPU-first. Switch device to cuda only after the GPU driver task is done.
+model_size: small
+device: cpu
+compute_type: int8
+beam_size: 5
+vad_filter: true
+language: en
+cpu_threads: 0   # 0 = library default; this i7-11370H has 4 cores / 8 threads

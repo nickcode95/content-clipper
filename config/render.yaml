@@ -1,0 +1,15 @@
+width: 1080
+height: 1920
+fps: 30
+video: {codec: libx264, preset: veryfast, crf: 20, pix_fmt: yuv420p}
+audio: {codec: aac, bitrate: 160k, loudnorm: "I=-14:TP=-1.5:LRA=11"}
+captions:
+  font: "DejaVu Sans"
+  bold: true
+  size: 72
+  highlight_color: "#FFD400"
+  max_words_per_line: 4
+  safe_top_pct: 10
+  safe_bottom_pct: 20
+hook: {seconds: 3, size: 84}
+music: {gain_db: -18, duck: true, fade_s: 1.0}

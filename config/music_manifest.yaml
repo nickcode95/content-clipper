@@ -1,0 +1,8 @@
+# One entry per track. Do not use a track without a license_url.
+tracks: []
+# - file: assets/music/example.mp3
+#   source: ""
+#   license_url: ""
+#   platforms: [tiktok, instagram, youtube]
+#   attribution: ""
+#   moods: [upbeat]

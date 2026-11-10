@@ -1,0 +1,9 @@
+# Editable weights for clip selection (0-10 each scored by the LLM)
+weights:
+  hook_strength: 3
+  self_contained: 2
+  payoff: 2
+  emotional_intensity: 1.5
+  density: 1
+  campaign_fit: 3
+window_seconds: {min: 30, max: 90}

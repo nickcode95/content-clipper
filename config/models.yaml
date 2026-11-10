@@ -1,0 +1,3 @@
+# Verify these model IDs against the current Anthropic docs before the first run.
+selection: claude-sonnet-5-5
+light: claude-haiku-5-5

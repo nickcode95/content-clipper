@@ -1,0 +1,13 @@
+# Copy this folder to campaigns/<campaign-name>/ and fill it in from the campaign page.
+# Use "unknown" for anything the campaign page does not state. Never guess.
+name: ""
+platforms: [tiktok, instagram]
+min_length_s: 15
+max_length_s: 90
+required_mentions: []      # handles, hashtags, brand mentions
+prohibited: []             # topics, wording, formats
+music_allowed: unknown
+ai_generated_content_allowed: unknown
+source_notes: ""           # where the authorized footage comes from
+rate_per_1k_views: 0.0
+other_rules: ""
