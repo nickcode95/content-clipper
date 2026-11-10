@@ -55,10 +55,15 @@ be cut at an edge. Rubric keys come from config/rubric.yaml.
 Trend brief: data/research/<campaign>.trend_brief.json
 
     {
-      "campaign": "...", "generated_at": "ISO-8601", "keywords": ["..."],
+      "campaign": "...", "generated_at": "ISO-8601", "sources": ["data/research/<campaign>.notes.md"],
+      "keywords": ["..."],
+      "fan_references": [{"name": "...", "context": "...", "emotion": "nostalgia"}],
       "patterns": [{"pattern": "...", "why_it_works": "...", "example_titles": ["..."]}],
       "hook_formulas": ["..."], "avoid": ["..."]
     }
+
+emotion is one of anticipation, speculation, excitement, intrigue, nostalgia, frustration.
+Clips carry hook_options (validated suggestions) and hook_line (the chosen one).
 
 Campaign rules: campaigns/<name>/rules.yaml (see campaigns/_template).
 Renders: data/out/<campaign>/<video_id>/<clip_id>.mp4 plus sidecar files (see Campaign-aware stages below).
@@ -92,7 +97,8 @@ Flow: brief.md -> campaign add -> rules.yaml (draft) -> human review -> campaign
 -> select -> HUMAN clip approval -> caption -> render -> qa -> HUMAN final approval -> publish.
 
 Commands (Typer): `campaign add <name> --brief <file>`, `campaign show <name>`, `campaign approve <name>`,
-`transcribe <video>`, `analyze <video>`, `select <campaign> <video_id>`, `approve-clips <video_id> <clip_id>...`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
+`research add <campaign> --notes <file>`, `transcribe <video>`, `analyze <video>`, `select <campaign> <video_id>`,
+`approve-clips <video_id> <clip_id>...`, `hooks <campaign> <video_id>`, `pick-hook <video_id> <clip_id> <n>`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
 `qa <campaign> <video_id>`, `approve <campaign> <video_id> <clip_id>`, `checklist <campaign>`.
 
 Output layout: data/out/<campaign>/<video_id>/ with, per clip_id:

@@ -35,6 +35,17 @@ from content_clipper.models import (
     RejectedCandidate,
     ShotAnalysis,
     Transcript,
+    TrendBrief,
+)
+from content_clipper.research.manual import load_trend_brief
+from content_clipper.select.hooks import (
+    HOOK_GUIDE,
+    MAX_OPTIONS,
+    narration_between,
+    reference_names,
+    research_text,
+    trend_section,
+    valid_options,
 )
 from content_clipper.sources import is_registered
 
@@ -151,7 +162,8 @@ def response_model(rubric_keys: list[str]) -> type[BaseModel]:
     )
     candidate = create_model(
         "Candidate",
-        start_shot=(int, ...), end_shot=(int, ...), hook_line=(str, ...), title=(str, ...),
+        start_shot=(int, ...), end_shot=(int, ...), hook_options=(list[str], ...),
+        title=(str, ...),
         scores=(scores, ...), reason=(str, ...),
     )
     return create_model("SelectResponse", candidates=(list[candidate], ...))
@@ -189,17 +201,10 @@ open on something striking (seen or heard), keep the pace up, end on a payoff. S
 show logos, title cards or end slates rarely hold attention. Score every candidate 0-10 on each \
 rubric key. The campaign rules are the campaign's non-negotiable terms: obey them exactly. \
 Return only JSON matching the schema. Do not invent anything that is not in the video. \
-hook_line is a short original line of on-screen text that could open the clip; title is a short \
-working title for the human reviewer.\
+hook_options are short original lines of on-screen text for the clip, read like a fan's post \
+reacting to it (best first, each playing on a different fan emotion or visible detail); title \
+is a short working title for the human reviewer.\
 """
-
-HOOK_GUIDE = {
-    "default": "hook_line may be punchy, but it must be true to the clip.",
-    "descriptive": "hook_line must be plain and accurate: describe what is seen or said in the "
-                   "clip. No exaggeration, no clickbait, no claims the clip does not show.",
-    "none": "Leave hook_line empty: this campaign uses no hook text.",
-}
-
 
 def rules_for_prompt(rules: CampaignRules) -> dict[str, Any]:
     return {
@@ -224,6 +229,7 @@ def build_content(
     min_len: float,
     max_len: float,
     max_clips: int,
+    trend: TrendBrief | None = None,
 ) -> list[dict[str, Any]]:
     shots = analysis.shots
     step = max(1, -(-len(shots) // MAX_IMAGES))
@@ -243,12 +249,13 @@ def build_content(
     content.append({"type": "text", "text": (
         f"{sampled}Timeline ({len(shots)} shots, {analysis.duration_s:.1f} s):\n"
         f"{timeline(analysis, transcript)}\n\n"
+        f"{trend_section(trend)}"
         f"Campaign rules:\n{json.dumps(rules_for_prompt(rules), ensure_ascii=False, indent=1)}\n\n"
         f"Rubric keys:\n{rubric_lines}\n\n"
         f"Task: return up to {max_clips} candidate clips, best first, with no shot in two "
         f"candidates. A clip is the shots start_shot..end_shot inclusive; its length is the sum "
         f"of their lengths and must be between {min_len:g} and {max_len:g} s. {target_line}"
-        f"{HOOK_GUIDE[rules.hook_style.mode]}"
+        f"Give up to {MAX_OPTIONS} hook_options per candidate. {HOOK_GUIDE[rules.hook_style.mode]}"
     )})
     return content
 
@@ -273,6 +280,7 @@ def select_clips(
     clips_dir: Path = Path("data/clips"),
     registry: Path = Path("data/sources/registry.csv"),
     campaigns_root: Path = Path("campaigns"),
+    research_dir: Path = Path("data/research"),
     max_clips: int = 5,
     force: bool = False,
 ) -> ClipsFile:
@@ -296,8 +304,9 @@ def select_clips(
 
     keys = list(rubric.weights)
     min_len, max_len = length_limits(rules, rubric, analysis.duration_s)
+    trend = load_trend_brief(campaign, research_dir)
     content = build_content(analysis, transcript, rules, rubric, keyframe_dir=a_path.parent,
-                            min_len=min_len, max_len=max_len, max_clips=max_clips)
+                            min_len=min_len, max_len=max_len, max_clips=max_clips, trend=trend)
     resp = llm.parse_structured(model=model, system=SYSTEM, user=content,
                                 output_type=response_model(keys))
 
@@ -324,16 +333,24 @@ def select_clips(
             continue
         kept.append((score, snapped, cand))
 
+    research_n = research_text(trend)
+    no_hooks = rules.hook_style.mode == "none" or rules.on_screen_text.policy == "forbidden"
+    hooks: list[list[str]] = []
+    for _, s, cand in kept:
+        opts = [] if no_hooks else valid_options(
+            cand.hook_options, c=c, narration=narration_between(transcript, s.start, s.end),
+            research_n=research_n, names=reference_names(trend))[0]
+        hooks.append(opts)
     clips = [
         Clip(
             id=f"c{i:02d}", start_s=s.start, end_s=s.end, start_shot=s.start_shot,
             end_shot=s.end_shot, start_seg=s.start_seg, end_seg=s.end_seg,
-            hook_line="" if rules.hook_style.mode == "none" else cand.hook_line.strip(),
+            hook_line=opts[0] if opts else "", hook_options=opts,
             title=cand.title.strip(), score=score,
             scores={k: float(v) for k, v in cand.scores.model_dump().items()},
             reason=cand.reason.strip(), speech_cut=s.speech_cut, approved=None,
         )
-        for i, (score, s, cand) in enumerate(kept, start=1)
+        for i, ((score, s, cand), opts) in enumerate(zip(kept, hooks, strict=True), start=1)
     ]
     result = ClipsFile(
         video_id=video_id, campaign=campaign, model=model,

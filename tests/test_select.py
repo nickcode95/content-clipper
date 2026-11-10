@@ -149,7 +149,8 @@ def ws(tmp_path, monkeypatch):
         keys = list(load_rubric_config(REPO / "config/rubric.yaml").weights)
 
         def cand(a, b, title, val):
-            return {"start_shot": a, "end_shot": b, "hook_line": f" {title} hook ",
+            return {"start_shot": a, "end_shot": b,
+                    "hook_options": [f" {title} hook ", "Rated 84 by critics", f"{title} hook"],
                     "title": title, "scores": dict.fromkeys(keys, val), "reason": "r"}
 
         return Resp.model_validate({"candidates": [
@@ -180,6 +181,7 @@ def test_select_writes_clips_ranked_and_unapproved(ws):
     assert [c.id for c in result.clips] == ["c01", "c02"]
     assert all(c.approved is None for c in result.clips)
     assert result.clips[0].hook_line == "end hook"
+    assert result.clips[0].hook_options == ["end hook"]  # ungrounded 84 + duplicate dropped
     assert result.clips[0].score == 8.0
     reasons = {r.title: r.reason for r in result.rejected}
     assert "overlaps a higher-scoring clip" in reasons["overlaps"]
@@ -194,7 +196,8 @@ def test_select_writes_clips_ranked_and_unapproved(ws):
     assert len(images) == len(SHOTS.shots)
     prompt = content[-1]["text"]
     assert "[H001]" in prompt and "exaggerated hooks, rage bait" in prompt
-    assert "between 8 and 20 s" in prompt and "plain and accurate" in prompt
+    assert "between 8 and 20 s" in prompt and "no false claims" in prompt
+    assert "did i just see" in prompt  # fan-anticipation hook guidance
 
 
 def test_select_refuses_existing_clips_without_force(ws):

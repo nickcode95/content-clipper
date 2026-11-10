@@ -247,6 +247,7 @@ class Clip(_Strict):
     start_seg: int | None = None  # first/last transcript segment spoken in the clip (None = no speech)
     end_seg: int | None = None
     hook_line: str
+    hook_options: list[str] = []  # validated suggestions; hook_line is the chosen one
     title: str
     score: float
     scores: dict[str, float]
@@ -269,3 +270,39 @@ class ClipsFile(_Strict):
     model: str
     clips: list[Clip]
     rejected: list[RejectedCandidate] = []
+
+
+# --------------------------------------------------------------------------------------------
+# Trend brief: data/research/<campaign>.trend_brief.json
+
+
+class TrendPattern(_Strict):
+    pattern: str  # an angle or pattern the audience responds to, in our own words
+    why_it_works: str
+    example_titles: list[str] = []
+
+
+Emotion = Literal["anticipation", "speculation", "excitement", "intrigue", "nostalgia",
+                  "frustration"]
+
+
+class FanReference(_Strict):
+    name: str  # a thing fans recognise: a gun, map, mode, character, old zone
+    context: str  # why fans care, in our own words
+    emotion: Emotion
+
+
+class TrendBriefBody(_Strict):
+    """What the LLM returns from research notes."""
+
+    keywords: list[str]
+    fan_references: list[FanReference] = []
+    patterns: list[TrendPattern]
+    hook_formulas: list[str]  # reusable templates in new wording
+    avoid: list[str]  # angles hooks must not use (they would break the campaign rules)
+
+
+class TrendBrief(TrendBriefBody):
+    campaign: str
+    generated_at: str
+    sources: list[str]

@@ -29,6 +29,9 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
   audio only. Accept: duration within 0.1 s of end_s - start_s; text inside the safe area.
   Done 10 Nov: 3 approved DMZ clips (17-23 s) rendered from the 4K60 source in 45 s total on CPU;
   durations exact; frames checked by eye (video centred, captions above, hook below).
+- [x] Hooks from fan research (pulled forward from S8): `research add` (pasted notes, kept and
+  accumulated), trend brief with fan_references; up to 4 fan-voice hook options per clip, checked
+  in code; `hooks` refreshes options, `pick-hook` chooses. Done 10 Nov on the MW4 DMZ clips.
 - [ ] S5 Action-following 9:16 crop as a second layout (motion-weighted, smoothed, centre fallback).
 - [ ] S6 Fri 20 Nov 19:30. Caption stage and compliance QA, per the caption-generation and
   compliance-qa skills. Accept: all deterministic checks tested on the example campaign.

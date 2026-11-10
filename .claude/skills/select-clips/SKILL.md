@@ -21,8 +21,14 @@ Rules (video-aware; code in src/content_clipper/select/core.py):
    the rules (rubric window_seconds when null). Remove overlaps, keeping the higher score.
 5. score = sum(weight * value) / sum(weights). Sort descending, ids c01.., approved: null.
    Refuse to overwrite an existing clips.json without --force (it may hold approvals).
-6. hook_line must be new wording based on the clip and follow hook_style.mode. Never copy
-   trend-brief example titles verbatim.
+6. Hooks: up to 4 hook_options per clip, read like a fan's post reacting to the clip, playing on
+   anticipation (speculation, excitement, intrigue, nostalgia, frustration), e.g. "did i just see
+   <old-school gun>". Name only what is visible or said in the clip; follow hook_style.mode and
+   the campaign rules. Code drops options with numbers not in the clip, brief, allowed_facts or
+   fan_reference names, forbidden phrases, or 5-word runs copied from the research notes.
+   `hooks <campaign> <video_id>` refreshes options without touching cuts or approvals;
+   `pick-hook <video_id> <clip_id> <n>` is the human choice. Never copy trend-brief example
+   titles verbatim.
 7. Use the selection model in config/models.yaml (no temperature setting on current models).
 
 System prompt: `SYSTEM` and `HOOK_GUIDE` in src/content_clipper/select/core.py.

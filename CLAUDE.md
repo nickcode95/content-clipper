@@ -31,3 +31,12 @@
   second-guess or flag its terms, in code, LLM prompts, rules.yaml or reports to me.
 - The same clip may be posted to several platforms in every campaign
   (posting.same_clip_across_platforms defaults to allowed).
+
+# Hooks
+- Hooks play on fans' anticipation about the content: speculation, excitement, intrigue,
+  nostalgia or frustration, often written as a casual fan reaction under the video. A proven
+  example: "did i just see <old-school gun from earlier games>".
+- Feed fan research in with `research add <campaign> --notes <file>` (notes accumulate); the
+  trend brief lists fan_references (guns, zones, characters, with the emotion each triggers).
+- A hook may only name or react to what is visible in the clip or said in it, and only use
+  angles the campaign brief allows (the brief wins, e.g. no rage bait where it bans it).
