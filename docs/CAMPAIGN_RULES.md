@@ -12,13 +12,18 @@ docs/examples/.
    Code checks the quote exists in brief.md (case-insensitive, whitespace-collapsed); numbers must
    appear in their quote; text pasted into posts (mentions, disclosure tags, required-line options,
    example captions, forbidden phrases) must appear verbatim in the brief. On any failure the value
-   is reset to the template default (null for safety fields) and a question is added to `unknowns`.
+   is reset to the template default (null for safety fields) and an entry is added to `unknowns`.
+   The brief is the campaign's non-negotiable terms: the LLM applies it literally, never questions
+   it, and code discards anything the LLM writes into `unknowns`. `unknowns` only ever lists values
+   that failed verification.
    Code: src/content_clipper/campaign/draft.py.
-2. A human reads the draft next to brief.md, answers the unknowns, edits, then runs
+2. A human reads the draft next to brief.md, fixes each value listed in `unknowns` (and deletes
+   the entry), edits anything else that is wrong, then runs
    `content-clipper campaign approve <name>` which sets status: reviewed and stores brief_sha256.
-   Approve refuses inconsistent rules (store.problems) and keeps comments in rules.yaml.
+   Approve refuses inconsistent rules or a non-empty `unknowns` (store.problems) and keeps
+   comments in rules.yaml.
 3. select, caption, render and qa refuse to run while status is draft (`store.require_reviewed`).
-   `checklist <name>` prints what a human must check: checklist, posting rules, other_rules, unknowns.
+   `checklist <name>` prints what a human must check: checklist, posting rules, other_rules.
 4. If brief.md changes later, the hash no longer matches: every stage treats the campaign as draft
    (rules.yaml text is left alone) until a human runs `campaign approve` again. A hand-edited
    `status: reviewed` without a stored hash is also treated as draft.
@@ -26,6 +31,8 @@ docs/examples/.
    kind of rule keeps appearing, propose a schema change instead. Rules about which account or
    channel to post on go in `posting.account_notes` (shown by `checklist`) until a publish stage
    needs them structured.
+6. Standing rule for every campaign: the same clip may be posted to several platforms
+   (`posting.same_clip_across_platforms` defaults to allowed).
 
 ## Who reads which field
 

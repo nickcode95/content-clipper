@@ -156,7 +156,8 @@ class HookStyle(_Strict):
 class PostingRules(_Strict):
     max_posts_per_clip: int | None = Field(default=None, ge=1)
     same_clip_on_multiple_accounts: Literal["allowed", "forbidden"] | None = None
-    same_clip_across_platforms: Literal["allowed", "forbidden"] | None = None
+    # Standing rule: the same clip may go to several platforms in every campaign.
+    same_clip_across_platforms: Literal["allowed", "forbidden"] | None = "allowed"
     min_days_live: int | None = Field(default=None, ge=0)
     dedicated_page_required: bool | None = None
     account_notes: list[str] = []

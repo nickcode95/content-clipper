@@ -83,7 +83,7 @@
     "posting": {
       "max_posts_per_clip": 3,
       "same_clip_on_multiple_accounts": null,
-      "same_clip_across_platforms": null,
+      "same_clip_across_platforms": "allowed",
       "min_days_live": 14,
       "dedicated_page_required": null,
       "account_notes": []
@@ -95,7 +95,7 @@
     ],
     "other_rules": [],
     "unknowns": [
-      "Does posting the same clip to TikTok and Instagram count as the same clip on multiple accounts?"
+      "A question the model should not have asked: it must be discarded."
     ]
   },
   "evidence": [

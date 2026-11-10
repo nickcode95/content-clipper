@@ -156,6 +156,11 @@ def problems(rules: CampaignRules) -> list[str]:
     for i, m in enumerate(rules.caption.required_mentions):
         if not m.text.strip():
             out.append(f"caption.required_mentions[{i}] has empty text")
+    if rules.unknowns:
+        out.append(
+            f"unknowns lists {len(rules.unknowns)} unverified value(s): set each from brief.md "
+            "and delete its entry"
+        )
     return out
 
 
@@ -217,7 +222,7 @@ def checklist_sections(rules: CampaignRules) -> dict[str, list[str]]:
         elif value == "allowed":
             posting.append(f"Posting {label} is allowed")
         else:
-            posting.append(f"Unknown whether {label} is allowed: ask before doing it")
+            posting.append(f"The brief sets no rule on {label}")
     if p.dedicated_page_required is True:
         posting.append("Post from a dedicated page for this campaign")
     elif p.dedicated_page_required is False:
@@ -228,5 +233,5 @@ def checklist_sections(rules: CampaignRules) -> dict[str, list[str]]:
         "Human checks (code cannot control these)": rules.checklist + rules.video.quality_notes,
         "Posting": posting,
         "Other rules (judge each clip by hand)": rules.other_rules,
-        "Open questions for the campaign team": rules.unknowns,
+        "Unverified values (fix in rules.yaml before approving)": rules.unknowns,
     }

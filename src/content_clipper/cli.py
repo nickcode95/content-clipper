@@ -85,7 +85,8 @@ def campaign_add(
     _bullets("Safety defaults", store.safety_notes(rules))
     _bullets("Problems that block approval", store.problems(rules))
     _bullets("Other rules (no schema field; checked by LLM review and by you)", rules.other_rules)
-    _bullets("Unknowns (answer them, edit rules.yaml)", rules.unknowns)
+    _bullets("Could not verify (fix in rules.yaml; approve refuses until this is empty)",
+             rules.unknowns)
     typer.echo(
         f"\nNext: read {d / 'rules.yaml'} next to brief.md, fix anything wrong, then run\n"
         f"  uv run content-clipper campaign approve {name}"
@@ -106,7 +107,7 @@ def campaign_show(name: str) -> None:
         typer.secho(f"PROBLEM   {p} (blocks approval)", fg="red")
     body = c.rules.body().model_dump(mode="json", exclude={"unknowns"})
     typer.echo("\n" + yaml.safe_dump(body, sort_keys=False, allow_unicode=True, width=100))
-    _bullets("Unknowns", c.rules.unknowns)
+    _bullets("Unverified values (fix before approving)", c.rules.unknowns)
     typer.echo(f"\nEvidence quotes: {len(c.rules.evidence)} (see rules.yaml)")
 
 
@@ -121,7 +122,6 @@ def campaign_approve(name: str) -> None:
     for w in c.warnings:
         typer.secho(f"WARNING   {w}", fg="yellow")
     _bullets("Safety defaults", store.safety_notes(c.rules))
-    _bullets("Still open (unknowns)", c.rules.unknowns)
 
 
 @app.command()

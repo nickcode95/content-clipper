@@ -109,6 +109,10 @@ def test_invalid_rules_are_rejected(mutate):
         CampaignRules.model_validate(data)
 
 
+def test_cross_platform_posting_is_allowed_by_default():
+    assert CampaignRulesBody().posting.same_clip_across_platforms == "allowed"
+
+
 def test_problems_block_inconsistent_rules():
     data = example_rules_data()
     data["video"]["max_length_s"] = 5
@@ -124,6 +128,7 @@ def test_problems_block_inconsistent_rules():
 def test_recorded_draft_verifies_completely():
     v = verify_draft(fake_draft(), BRIEF)
     assert v.rejections == []
+    assert v.body.unknowns == []  # questions the model wrote about the brief are discarded
     assert v.verified == 31
     assert v.body == CampaignRules.model_validate(example_rules_data()).body()
     assert v.evidence["audio.music_allowed"] == "No added music."
@@ -290,6 +295,22 @@ def test_approve_refuses_problems(workspace):
     assert store.load_campaign(NAME, root).rules.status == "draft"
 
 
+def test_approve_refuses_unverified_values(workspace, monkeypatch):
+    root = workspace["root"] / "campaigns"
+    monkeypatch.setattr(llm, "parse_structured", lambda **kw: fake_draft(
+        lambda d: set_evidence(d, "audio.music_allowed", "made-up quote")))
+    rules, _ = add_campaign(NAME, workspace["brief"].read_bytes(), model="m", root=root)
+    assert rules.audio.music_allowed is None and len(rules.unknowns) == 1
+    with pytest.raises(store.CampaignError, match="unverified"):
+        store.approve(NAME, root)
+    p = root / NAME / "rules.yaml"  # the human fixes the value from the brief and clears the entry
+    data = yaml.safe_load(p.read_text())
+    data["audio"]["music_allowed"] = False
+    data["unknowns"] = []
+    p.write_text(yaml.safe_dump(data, sort_keys=False))
+    assert store.approve(NAME, root).status == "reviewed"
+
+
 def test_expiry_only_warns(workspace):
     root = workspace["root"] / "campaigns"
     add_campaign(NAME, workspace["brief"].read_bytes(), model="m", root=root)
@@ -309,8 +330,8 @@ def test_checklist_sections_cover_posting_and_unknowns():
     posting = s["Posting"]
     assert "Keep every post live for at least 14 days" in posting
     assert "Post the same clip at most 3 times" in posting
-    assert any(line.startswith("Unknown whether the same clip on multiple") for line in posting)
-    assert s["Open questions for the campaign team"] == rules.unknowns
+    assert "The brief sets no rule on the same clip on multiple accounts" in posting
+    assert "Posting the same clip across platforms is allowed" in posting
 
 
 # ---------------------------------------------------------------- CLI

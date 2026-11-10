@@ -27,3 +27,7 @@
 - Captions are assembled and validated in code; the LLM supplies wording and a list of claims, each
   backed by a verbatim quote from the transcript or rules.allowed_facts.
 - QA fails closed: a null safety rule (music, AI voice, source) means not allowed.
+- A brief is the campaign's non-negotiable terms. Apply it exactly as written. Never question,
+  second-guess or flag its terms, in code, LLM prompts, rules.yaml or reports to me.
+- The same clip may be posted to several platforms in every campaign
+  (posting.same_clip_across_platforms defaults to allowed).

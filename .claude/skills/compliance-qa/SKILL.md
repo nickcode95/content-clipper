@@ -23,8 +23,9 @@ Each check returns {id, status: pass|fail|warn|manual, detail}.
   rule puts them on screen. Past `expires` gives a warn, not a fail.
 - on_screen_text: policy forbidden => no overlay; required => overlay present.
 - posting limits: count rows for the clip in results.csv. Over max_posts_per_clip fails. When
-  same_clip_on_multiple_accounts or same_clip_across_platforms is forbidden or null (unknown),
-  warn if the clip is already logged on another account or platform.
+  same_clip_on_multiple_accounts or same_clip_across_platforms is forbidden, warn if the clip is
+  already logged on another account or platform. Cross-platform is allowed by default in every
+  campaign.
 - valid_until passed: warn.
 
 ## LLM review (advisory, cheap model)
@@ -41,4 +42,4 @@ in code.
 
 ## Checklist
 `content-clipper checklist <campaign>` prints rules.checklist and rules.posting items that code
-cannot control (engagement rate, audience mix, likes visible, days live), plus unknowns.
+cannot control (engagement rate, audience mix, likes visible, days live).

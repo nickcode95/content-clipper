@@ -60,12 +60,13 @@ prohibited: []             # content the campaign bans, each as a short sentence
 posting:
   max_posts_per_clip: null
   same_clip_on_multiple_accounts: null   # allowed | forbidden | null
-  same_clip_across_platforms: null       # allowed | forbidden | null
+  same_clip_across_platforms: allowed    # allowed | forbidden | null. Allowed in every campaign.
   min_days_live: null
   dedicated_page_required: null
   account_notes: []
 
 checklist: []              # things code cannot control (engagement rate, audience mix, likes visible...)
 other_rules: []            # anything that fits no field above. Reviewed by the LLM and by a human.
-unknowns: []               # questions to ask the campaign team
+unknowns: []               # values code could not verify against brief.md. Fix each, delete it.
+                           # Approve refuses while any remain. Never questions about the brief.
 evidence: {}               # dotted.field.path -> verbatim quote from brief.md that supports it

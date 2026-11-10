@@ -34,8 +34,12 @@ You turn a campaign brief for short-form video clipping into structured rules. T
 automated editing and caption pipeline, and QA blocks posts that break them, so accuracy matters \
 more than completeness.
 
+- The brief is the campaign's non-negotiable terms. Apply it exactly as written. Do not question, \
+second-guess, soften or flag any of its terms, and do not raise questions about it. Where wording \
+could be read two ways, follow its literal wording.
 - Record only what the brief states. Where the brief is silent, keep the template default (null, \
-empty list, false, unknown). Never guess and never fill in from general knowledge.
+empty list, false, unknown, allowed). Never guess and never fill in from general knowledge.
+- Leave unknowns empty.
 - Evidence: for every value you set differently from the template default, and for every list \
 item, add an evidence entry {path, quote}. path uses dotted field names and [i] for list items, \
 for example audio.music_allowed, caption.required_mentions[0], prohibited[2]. quote is a span \
@@ -47,8 +51,6 @@ forbidden phrases) must be copied exactly as written in the brief.
 - A rule that fits no field goes in other_rules as a short sentence. Never drop a rule.
 - Things code cannot check (engagement rate, audience countries, likes visible, how long a post \
 stays live, story boosting, paid promotion) go in checklist.
-- Put questions for the campaign team in unknowns: ambiguities, contradictions, and anything \
-time-sensitive (for example a claim that stops being true after a date).
 """
 
 
@@ -182,12 +184,18 @@ def verify_draft(draft: RulesDraft, brief_text: str) -> VerifiedDraft:
 
     body = draft.rules.model_dump(mode="json")
     default = CampaignRulesBody().model_dump(mode="json")
-    unknowns = body.pop("unknowns")  # questions, not claims: no evidence needed
+    # The brief is not up for question: whatever the model put in unknowns is discarded. unknowns
+    # only lists values that failed verification, for the human to fix before approval.
+    body.pop("unknowns")
     default.pop("unknowns")
+    unknowns: list[str] = []
     checked = walk(body, default, "")
     for r in rejections:
         value = json.dumps(r.value, ensure_ascii=False)
-        unknowns.append(f"Could not verify {r.path} = {value} ({r.reason}). What does the brief say?")
+        unknowns.append(
+            f"Could not verify {r.path} = {value} ({r.reason}). Set it from brief.md, "
+            "then delete this entry."
+        )
     checked["unknowns"] = unknowns
     return VerifiedDraft(
         body=CampaignRulesBody.model_validate(checked),
@@ -214,7 +222,7 @@ def request_draft(brief_text: str, *, model: str, template_text: str, today: dat
 
 HEADER = """\
 # Drafted by `content-clipper campaign add` from brief.md. Status stays draft until a human
-# checks every value against brief.md, answers the unknowns, and runs:
+# checks every value against brief.md, fixes anything listed in unknowns, and runs:
 #   uv run content-clipper campaign approve {name}
 # null means "the brief does not say". For music, AI voice and source, null means NOT allowed.
 """

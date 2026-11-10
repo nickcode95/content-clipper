@@ -60,7 +60,7 @@ prohibited:
 posting:
   max_posts_per_clip: 3
   same_clip_on_multiple_accounts: null
-  same_clip_across_platforms: null
+  same_clip_across_platforms: allowed
   min_days_live: 14
   dedicated_page_required: null
   account_notes: []
@@ -70,8 +70,7 @@ checklist:
   - "Likes must be visible"
   - "Posts stay live for 14 days"
 other_rules: []
-unknowns:
-  - "Does posting the same clip to TikTok and Instagram count as the same clip on multiple accounts?"
+unknowns: []
 evidence:
   source.policy: "Use only footage from the content folder."
   audio.music_allowed: "No added music."
