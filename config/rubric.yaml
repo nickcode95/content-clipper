@@ -1,4 +1,4 @@
-# Editable weights for clip selection (0-10 each scored by the LLM)
+# Clip selection rubric. The LLM scores every key 0-10; score = sum(weight * value) / sum(weights).
 weights:
   hook_strength: 3
   self_contained: 2
@@ -6,4 +6,16 @@ weights:
   emotional_intensity: 1.5
   density: 1
   campaign_fit: 3
+  visual_impact: 2.5
+descriptions:
+  hook_strength: "How strongly the first 2 seconds (what is seen AND heard) stop the scroll"
+  self_contained: "Makes sense on its own, without the rest of the video"
+  payoff: "Ends on a satisfying moment, line or reveal"
+  emotional_intensity: "Energy, tension or excitement"
+  density: "Little dead time: something new happens every few seconds"
+  campaign_fit: "Shows what the campaign wants shown and breaks none of its rules"
+  visual_impact: "Spectacle on screen: action, explosions, reveals, striking places"
+# Hard length limits, used only when the campaign rules leave them null.
 window_seconds: {min: 30, max: 90}
+# Soft guidance for the LLM (not enforced): the length that usually performs best.
+target_seconds: {min: 15, max: 35}

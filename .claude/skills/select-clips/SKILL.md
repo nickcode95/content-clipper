@@ -1,32 +1,31 @@
 ---
 name: select-clips
-description: Use when building or running the clip selection stage. Scores transcript windows with an LLM against the rubric, campaign rules and trend brief, snaps results to exact Whisper word timestamps, and writes clips.json.
+description: Use when building or running the clip selection stage. The LLM sees one keyframe per shot plus the narration and campaign rules, picks shot ranges, and code snaps them to shot and word boundaries and writes clips.json.
 ---
 # Selecting clips
 
-Inputs: transcript JSON, config/rubric.yaml, campaigns/<name>/rules.yaml, optional trend brief.
+Inputs: transcript JSON, shot analysis + keyframes, config/rubric.yaml, campaigns/<name>/rules.yaml,
+optional trend brief.
 
-Rules:
-1. Send the transcript as lines like `[S012] text` using segment IDs. Never ask the model for timestamps.
-2. Ask for JSON only. Each candidate has: start_seg, end_seg, first_words (first 6 words),
-   last_words (last 6 words), hook_line, title, scores (one 0-10 value per rubric key), reason.
-3. Snap: find first_words and last_words inside the named segments using normalised tokens
-   (lowercase, punctuation stripped). If either is not found, discard the candidate and log it.
-   Never repair a mismatch by guessing.
-4. Take start_s and end_s from the word timestamps. Pad 0.15 s before and 0.25 s after.
-   Enforce the campaign min and max length. Remove overlaps, keeping the higher score.
-5. score = sum(weight * value) / sum(weights), weights from config/rubric.yaml.
-   Sort descending and write data/clips/<video_id>.clips.json with approved: null.
-6. hook_line must be new wording based on the clip. Never copy trend-brief example titles verbatim.
-7. Use the model in config/models.yaml, low temperature, retries via tenacity, and validate the
-   response with pydantic before using it.
+Rules (video-aware; code in src/content_clipper/select/core.py):
+1. Inputs: transcript, data/analysis/<video_id>/shots.json + keyframes (run `analyze` first),
+   reviewed campaign rules, config/rubric.yaml. The source must be in data/sources/registry.csv
+   for the campaign when source.require_registry.
+2. Send one keyframe per shot labelled [H###] and a timeline: shot length, audio level, motion,
+   brightness and the words spoken in it. Never send or accept timestamps.
+3. Ask for JSON: candidates with start_shot, end_shot, hook_line, title, scores (one 0-10 value
+   per rubric key), reason. Validate with pydantic; unknown shot IDs are rejected and logged.
+4. Snap in code: cuts on shot boundaries (end pulled back one analysis frame); extend to the
+   nearest shot boundary that keeps a sentence whole if that costs at most 3 s; otherwise move
+   the cut to a word edge (never inside a word) and set speech_cut. Enforce min/max length from
+   the rules (rubric window_seconds when null). Remove overlaps, keeping the higher score.
+5. score = sum(weight * value) / sum(weights). Sort descending, ids c01.., approved: null.
+   Refuse to overwrite an existing clips.json without --force (it may hold approvals).
+6. hook_line must be new wording based on the clip and follow hook_style.mode. Never copy
+   trend-brief example titles verbatim.
+7. Use the selection model in config/models.yaml (no temperature setting on current models).
 
-System prompt to start from:
-
-    You are an editor choosing short-form clips from a transcript. Pick moments that work as
-    standalone 30-90 second videos. Score each on the given rubric keys from 0 to 10. Obey the
-    campaign rules exactly. Return only JSON matching the schema. Do not invent text that is not
-    in the transcript. The hook_line is a short original line that could open the clip.
+System prompt: `SYSTEM` and `HOOK_GUIDE` in src/content_clipper/select/core.py.
 
 <!-- campaign-aware -->
 ## Campaign awareness

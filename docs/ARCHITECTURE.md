@@ -1,13 +1,13 @@
 # Architecture: stage contracts
 
-Pipeline: ingest -> transcribe -> select -> HUMAN APPROVAL -> render -> qa -> publish.
+Pipeline: ingest -> transcribe + analyze -> select -> HUMAN APPROVAL -> render -> qa -> publish.
 A weekly research step writes a trend brief that select reads.
 Every stage is a Typer subcommand (`uv run content-clipper <stage>`) that reads and writes
 files under data/. Stages do not import each other's internals; they exchange files.
 Use pydantic models in src/content_clipper/models.py for every file contract below.
 
-Layout: src/content_clipper/{cli.py, config.py, models.py, ingest/, transcribe/, select/,
-render/, qa/, research/, publish/}. Config lives in config/*.yaml. Media is never committed.
+Layout: src/content_clipper/{cli.py, config.py, models.py, llm.py, media.py, sources.py,
+campaign/, ingest/, transcribe/, analyze/, select/, render/, qa/, research/, publish/}. Config lives in config/*.yaml. Media is never committed.
 
 ## File contracts
 
@@ -23,18 +23,32 @@ Transcript: data/transcripts/<video_id>.json
       "words": [{"seg": 0, "w": "Hello", "start": 0.0, "end": 0.4}]
     }
 
+Shot analysis: data/analysis/<video_id>/shots.json, plus shot_###.jpg keyframes next to it
+
+    {
+      "video": "data/sources/<file>", "video_id": "...", "duration_s": 0.0, "analysis_fps": 30.0,
+      "shots": [{"id": 0, "start": 0.0, "end": 2.0, "keyframe": "shot_000.jpg",
+                 "loudness_db": -18.0, "motion": 0.02, "brightness": 0.3}]
+    }
+
+Shots are contiguous (each starts where the previous ended). Boundaries are accurate to 1/analysis_fps.
+
 Clips: data/clips/<video_id>.clips.json
 
     {
-      "video_id": "...", "campaign": "...", "generated_at": "ISO-8601",
+      "video_id": "...", "campaign": "...", "generated_at": "ISO-8601", "model": "...",
       "clips": [{
-        "id": "c01", "start_s": 0.0, "end_s": 0.0, "start_seg": 0, "end_seg": 0,
+        "id": "c01", "start_s": 0.0, "end_s": 0.0, "start_shot": 0, "end_shot": 3,
+        "start_seg": 0, "end_seg": 2,
         "hook_line": "...", "title": "...", "score": 0.0,
-        "scores": {"hook_strength": 0, "self_contained": 0, "payoff": 0,
-                   "emotional_intensity": 0, "density": 0, "campaign_fit": 0},
-        "reason": "...", "approved": null
-      }]
+        "scores": {"<rubric key>": 0, "...": 0},
+        "reason": "...", "speech_cut": false, "approved": null
+      }],
+      "rejected": [{"start_shot": 0, "end_shot": 0, "title": "...", "reason": "..."}]
     }
+
+start_seg/end_seg are null for clips with no speech. speech_cut is true when a sentence had to
+be cut at an edge. Rubric keys come from config/rubric.yaml.
 
 `approved` stays null until I set it. Render only processes clips with approved == true.
 
@@ -53,9 +67,15 @@ Results log: data/results.csv (header already created).
 ## Stage notes
 
 - Transcribe: faster-whisper, word timestamps, settings from config/transcribe.yaml.
-- Select: the LLM sees segment IDs, never timestamps (see the select-clips skill).
-- Reframe: OpenCV Haar cascade (cv2.data.haarcascades), detect every ~5th frame, smooth the
-  crop centre, fall back to a centre crop when no face is found. MediaPipe is a later upgrade.
+- Analyze: one ffmpeg pass; cut detection on 160x90 grey frames at 30 fps (difference above a
+  floor and 3x the local median, shots at least 0.3 s), per-shot RMS loudness, motion, brightness,
+  one 640 px keyframe per shot.
+- Select: video-aware. The LLM sees shot IDs, keyframes and the words spoken per shot, never
+  timestamps, and returns shot ranges. Code snaps them (see the select-clips skill).
+- Layouts (render): `band` puts the full-width 16:9 video on the 9:16 canvas over a blurred copy
+  of itself (or a solid colour), with the hook in the band below the video and captions in the
+  band above. An action-following 9:16 crop comes later. Game footage rarely has usable faces,
+  so face tracking is not the default.
 - Render: ffmpeg re-encode (never stream copy) to the settings in config/render.yaml.
 - QA: see Campaign-aware stages below. QA failures block publishing.
 - Publish: out of scope until the first full run works.

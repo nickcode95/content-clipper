@@ -197,3 +197,75 @@ class CampaignRules(CampaignRulesBody):
         return CampaignRulesBody.model_validate(
             self.model_dump(include=set(CampaignRulesBody.model_fields))
         )
+
+
+# --------------------------------------------------------------------------------------------
+# Shot analysis: data/analysis/<video_id>/shots.json (+ shot_###.jpg keyframes next to it)
+
+
+class Shot(_Strict):
+    id: int = Field(ge=0)
+    start: float = Field(ge=0)
+    end: float = Field(ge=0)
+    keyframe: str  # file name next to shots.json
+    loudness_db: float  # RMS level of the shot's audio in dBFS (-90 = silence)
+    motion: float = Field(ge=0)  # mean absolute frame-to-frame difference, 0..1
+    brightness: float = Field(ge=0, le=1)  # mean luma, 0..1
+
+
+class ShotAnalysis(_Strict):
+    video: str
+    video_id: str
+    duration_s: float = Field(ge=0)
+    analysis_fps: float = Field(gt=0)
+    shots: list[Shot]
+
+    @model_validator(mode="after")
+    def _contiguous(self) -> ShotAnalysis:
+        prev_end = 0.0
+        for i, s in enumerate(self.shots):
+            if s.id != i:
+                raise ValueError(f"shot {i} has id {s.id}")
+            if abs(s.start - prev_end) > 1e-6:
+                raise ValueError(f"shot {i} starts at {s.start}, previous ended at {prev_end}")
+            if s.end <= s.start:
+                raise ValueError(f"shot {i}: end {s.end} <= start {s.start}")
+            prev_end = s.end
+        return self
+
+
+# --------------------------------------------------------------------------------------------
+# Clips: data/clips/<video_id>.clips.json
+
+
+class Clip(_Strict):
+    id: str
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+    start_shot: int = Field(ge=0)
+    end_shot: int = Field(ge=0)
+    start_seg: int | None = None  # first/last transcript segment spoken in the clip (None = no speech)
+    end_seg: int | None = None
+    hook_line: str
+    title: str
+    score: float
+    scores: dict[str, float]
+    reason: str
+    speech_cut: bool = False  # True when a sentence had to be cut at the start or end
+    approved: bool | None = None  # set by a human; render only uses approved == true
+
+
+class RejectedCandidate(_Strict):
+    start_shot: int
+    end_shot: int
+    title: str
+    reason: str
+
+
+class ClipsFile(_Strict):
+    video_id: str
+    campaign: str
+    generated_at: str
+    model: str
+    clips: list[Clip]
+    rejected: list[RejectedCandidate] = []

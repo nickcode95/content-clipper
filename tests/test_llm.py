@@ -118,8 +118,9 @@ def test_unconstrained_retries_once_with_the_validation_error(use_client):
     client = use_client(FakeClient(resp(BAD), resp(GOOD)))
     assert call_unconstrained() == Out(x=1)
     assert len(client.calls) == 2
-    retry_prompt = client.calls[1]["messages"][0]["content"]
-    assert retry_prompt.startswith("u") and "did not match the schema" in retry_prompt
+    first, retry = (c["messages"][0]["content"] for c in client.calls)
+    assert first == [{"type": "text", "text": "u"}]
+    assert retry[0] == first[0] and "did not match the schema" in retry[-1]["text"]
 
 
 def test_unconstrained_gives_up_after_the_retry(use_client):

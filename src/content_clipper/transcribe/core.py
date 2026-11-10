@@ -8,18 +8,18 @@ faster-whisper segments (`.start`, `.end`, `.text`, `.words[i].start/.end/.word`
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from content_clipper.config import TranscribeConfig
-
-SAMPLE_RATE = 16_000  # what whisper expects
+from content_clipper.media import (  # noqa: F401 (SAMPLE_RATE re-exported for tests)
+    SAMPLE_RATE,
+    contract_video_path,
+    decode_audio,
+)
 from content_clipper.models import Segment, Transcript, Word
 
 
@@ -46,24 +46,6 @@ def load_model(cfg: TranscribeConfig) -> Any:
         compute_type=cfg.compute_type,
         cpu_threads=cfg.cpu_threads,
     )
-
-
-def decode_audio(video: Path, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
-    """First audio stream as mono float32 PCM, decoded by the system ffmpeg.
-
-    faster-whisper's own decoder (PyAV) is broken with av>=19 (it passes the removed
-    `metadata_errors` argument), so we decode here and hand whisper a numpy array.
-    """
-    cmd = [
-        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-i", str(video), "-map", "0:a:0", "-vn",
-        "-ac", "1", "-ar", str(sample_rate), "-f", "f32le", "-",
-    ]
-    proc = subprocess.run(cmd, capture_output=True, check=False)
-    if proc.returncode != 0:
-        err = proc.stderr.decode(errors="replace").strip()
-        raise RuntimeError(f"ffmpeg could not decode audio from {video}: {err}")
-    return np.frombuffer(proc.stdout, dtype=np.float32)
 
 
 def _t(x: float) -> float:
@@ -124,15 +106,6 @@ def build_transcript(
         words=out_words,
     )
     return transcript, adjusted
-
-
-def contract_video_path(video: Path) -> str:
-    """Path as stored in the contract: relative to the repo root (cwd) when possible."""
-    p = video.resolve()
-    try:
-        return p.relative_to(Path.cwd().resolve()).as_posix()
-    except ValueError:
-        return p.as_posix()
 
 
 def transcribe_file(

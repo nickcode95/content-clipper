@@ -15,12 +15,19 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
   Done 10 Nov: campaign add/show/approve + checklist. Real MW4 DMZ brief drafted in 48 s with
   claude-sonnet-5-5: 67 values quote-verified, 0 rejected, 7 unknowns. Rules schema is too large
   for grammar-constrained output, so that call uses schema-in-prompt + pydantic + 1 retry.
-- [ ] S3 Sat 14 Nov 10:00. Select.
-  LLM scoring per the select-clips skill, snapping to word timestamps, rules-aware prompt,
-  clips.json written. Accept: snapper unit tests, including a rejected mismatch.
-- [ ] S4 Mon 16 Nov 19:30. Cut + word-highlight captions (ASS) for one clip.
-  Accept: duration within 0.1 s of end_s - start_s; captions visible.
-- [ ] S5 Wed 18 Nov 19:30. 9:16 face-tracked reframe (centre-crop fallback) and overlay text.
+- [x] S3 Video-aware select.
+  `analyze <video>`: shot detection, per-shot loudness/motion/brightness, one keyframe per shot
+  (data/analysis/<video_id>/). `select <campaign> <video_id>`: the LLM sees keyframes + narration
+  per shot + rules, returns shot ranges; code snaps cuts to shot boundaries, keeps sentences whole
+  where it can, never cuts inside a word, enforces lengths, removes overlaps, writes clips.json.
+  Accept: shot detection and snapper unit tests on synthetic data, including rejected candidates.
+  Done 10 Nov: analyze finds 41 shots in the 64 s 4K60 DMZ trailer in 20 s (beats ffmpeg's scene
+  filter on dark cuts); select with claude-sonnet-5-5 + 41 keyframes returns 3 clips (17-23 s) in 19 s.
+- [ ] S4 Render v1: cut + "band" layout + hook + word-highlight captions for approved clips.
+  Full-width 16:9 video on a 1080x1920 canvas (blurred-video or solid background), hook text in
+  the band below the video, word-highlight captions (ASS) in the band above, loudnorm, original
+  audio only. Accept: duration within 0.1 s of end_s - start_s; text inside the safe area.
+- [ ] S5 Action-following 9:16 crop as a second layout (motion-weighted, smoothed, centre fallback).
 - [ ] S6 Fri 20 Nov 19:30. Caption stage and compliance QA, per the caption-generation and
   compliance-qa skills. Accept: all deterministic checks tested on the example campaign.
 - [ ] S7 Sat 21 Nov 10:00. First full run on a real campaign video, no music, end to end

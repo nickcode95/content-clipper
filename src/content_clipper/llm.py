@@ -94,13 +94,15 @@ def parse_structured[T: BaseModel](
     *,
     model: str,
     system: str,
-    user: str,
+    user: str | list[dict[str, Any]],
     output_type: type[T],
     max_tokens: int = 16000,
     effort: str | None = None,
     constrained: bool = True,
 ) -> T:
     """Ask `model` for JSON matching `output_type` and return the validated object.
+
+    `user` is the prompt text, or a list of content blocks (text and images).
 
     constrained=True: the API enforces the schema as a grammar (structured outputs). The API
     refuses grammars above a size limit, so large schemas use constrained=False: the schema goes
@@ -121,10 +123,10 @@ def parse_structured[T: BaseModel](
     extra = {"output_config": output_config} if output_config else {}
 
     attempts = 1 if constrained else 2
-    prompt = user
+    content = [{"type": "text", "text": user}] if isinstance(user, str) else list(user)
     for attempt in range(1, attempts + 1):
         resp = _create(client, model, max_tokens=max_tokens, system=system,
-                       messages=[{"role": "user", "content": prompt}], **extra)
+                       messages=[{"role": "user", "content": content}], **extra)
         text = _text(resp, max_tokens)
         try:
             return output_type.model_validate_json(_extract_json(text))
@@ -133,8 +135,8 @@ def parse_structured[T: BaseModel](
                 raise LLMError(
                     f"Response did not match the schema (request id {resp._request_id}): {e}"
                 ) from e
-            prompt = (
-                f"{user}\n\nA previous answer to this request was rejected because its JSON did "
-                f"not match the schema:\n{e}\nReturn a corrected JSON object."
-            )
+            content = [*content, {"type": "text", "text": (
+                "A previous answer to this request was rejected because its JSON did not match "
+                f"the schema:\n{e}\nReturn a corrected JSON object."
+            )}]
     raise AssertionError("unreachable")

@@ -10,14 +10,17 @@ import typer
 import yaml
 from pydantic import ValidationError
 
+from content_clipper.analyze import core as an
 from content_clipper.campaign import draft as campaign_draft
 from content_clipper.campaign import store
 from content_clipper.config import (
     CONFIG_DIR,
     load_models_config,
+    load_rubric_config,
     load_transcribe_config,
 )
 from content_clipper.llm import LLMError
+from content_clipper.select import core as sel
 from content_clipper.transcribe import core as tx
 
 app = typer.Typer(
@@ -33,7 +36,7 @@ app.add_typer(campaign_app, name="campaign")
 
 @app.callback()
 def _root() -> None:
-    """Stages: campaign add/approve -> transcribe -> select -> approve -> render -> qa."""
+    """Stages: campaign add/approve -> transcribe + analyze -> select -> render -> qa."""
 
 
 def _fail(msg: str) -> NoReturn:
@@ -182,6 +185,63 @@ def transcribe(
         f"word timings clamped {res.adjusted_words}, language {t.language}"
     )
     typer.echo(f"wrote       {path}")
+
+
+
+@app.command()
+def analyze(
+    video: Annotated[
+        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Source video.")
+    ],
+    out_dir: Annotated[Path, typer.Option(help="Root for <video_id>/shots.json.")] = Path(
+        "data/analysis"
+    ),
+) -> None:
+    """Find shots in VIDEO and measure each (loudness, motion, brightness), with a keyframe."""
+    import time
+
+    t0 = time.perf_counter()
+    try:
+        a = an.analyze_video(video, out_dir)
+    except RuntimeError as e:
+        _fail(str(e))
+    wall = time.perf_counter() - t0
+    lengths = [s.end - s.start for s in a.shots]
+    typer.echo(f"shots       {len(a.shots)} (median {sorted(lengths)[len(lengths) // 2]:.1f} s, "
+               f"shortest {min(lengths):.1f} s, longest {max(lengths):.1f} s)")
+    typer.echo(f"duration    {a.duration_s:.2f} s")
+    typer.echo(f"wall time   {wall:.1f} s")
+    typer.echo(f"wrote       {out_dir / a.video_id / 'shots.json'} + {len(a.shots)} keyframes")
+
+
+def _ts(t: float) -> str:
+    return f"{int(t // 60)}:{t % 60:04.1f}"
+
+
+@app.command("select")
+def select_cmd(
+    campaign: str,
+    video_id: Annotated[str, typer.Argument(help="Source file stem, as in data/transcripts/.")],
+    max_clips: Annotated[int, typer.Option(min=1, max=20)] = 5,
+    force: Annotated[bool, typer.Option(help="Overwrite an existing clips.json.")] = False,
+) -> None:
+    """Pick clips for CAMPAIGN from VIDEO_ID's shots, narration and keyframes."""
+    model = load_models_config().selection
+    typer.echo(f"Selecting clips for {campaign} from {video_id} with {model} ...")
+    try:
+        result = sel.select_clips(campaign, video_id, model=model, rubric=load_rubric_config(),
+                                  max_clips=max_clips, force=force)
+    except (store.CampaignError, sel.SelectError, LLMError, ValidationError) as e:
+        _fail(str(e))
+    for c in result.clips:
+        flag = "  [cuts a sentence]" if c.speech_cut else ""
+        typer.echo(f"\n{c.id}  {_ts(c.start_s)}-{_ts(c.end_s)}  {c.end_s - c.start_s:4.1f} s  "
+                   f"score {c.score:.1f}  shots H{c.start_shot:03d}-H{c.end_shot:03d}{flag}")
+        typer.echo(f"     title: {c.title}\n     hook:  {c.hook_line}\n     why:   {c.reason}")
+    _bullets("Rejected candidates", [f"H{r.start_shot:03d}-H{r.end_shot:03d} {r.title}: {r.reason}"
+                                     for r in result.rejected])
+    typer.echo(f"\nWrote data/clips/{video_id}.clips.json. Set \"approved\": true on the clips "
+               "you want rendered.")
 
 
 if __name__ == "__main__":

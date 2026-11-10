@@ -43,3 +43,26 @@ class ModelsConfig(BaseModel):
 
 def load_models_config(path: Path = CONFIG_DIR / "models.yaml") -> ModelsConfig:
     return ModelsConfig.model_validate(_load_yaml(path))
+
+
+class Window(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    min: float = Field(ge=0)
+    max: float = Field(gt=0)
+
+
+class RubricConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    weights: dict[str, float]
+    descriptions: dict[str, str] = {}
+    window_seconds: Window
+    target_seconds: Window | None = None
+
+
+def load_rubric_config(path: Path = CONFIG_DIR / "rubric.yaml") -> RubricConfig:
+    cfg = RubricConfig.model_validate(_load_yaml(path))
+    if not cfg.weights or any(w < 0 for w in cfg.weights.values()):
+        raise ValueError(f"{path}: weights must be non-empty and non-negative")
+    return cfg

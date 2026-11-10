@@ -4,9 +4,9 @@
 # null means "the brief does not say". For music, AI voice and source, null means NOT allowed.
 schema_version: 1
 name: mw4-dmz-intel-briefing
-status: draft
+status: reviewed
 brief_file: brief.md
-brief_sha256: ''
+brief_sha256: "f8b9121854692ce8aae228b9f33400c93e13699959e0dbe4df648c59680adca5"
 valid_until: null
 platforms:
 - tiktok
