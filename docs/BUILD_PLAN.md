@@ -7,11 +7,14 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
 - [x] S1 Wed 11 Nov. Transcribe. Commit 32c93d5.
   Whisper small, CPU int8: about 0.08-0.09x real time on a 64 s clip (11x faster than real time).
   Audio decoding uses system ffmpeg because faster-whisper 1.2.1 cannot decode with PyAV 19.
-- [ ] S2 Fri 13 Nov 19:30. Campaign rules.
+- [x] S2 Fri 13 Nov 19:30. Campaign rules.
   pydantic CampaignRules model from docs/CAMPAIGN_RULES.md, `campaign add / show / approve`,
   LLM draft with verbatim-quote evidence check, brief hash check, draft-status gate, `checklist`.
   Accept: tests on docs/examples/ (valid, invalid, a hallucinated quote reset to null, a changed
   brief reverting status). Needs ANTHROPIC_API_KEY and one real pasted brief of mine.
+  Done 10 Nov: campaign add/show/approve + checklist. Real MW4 DMZ brief drafted in 48 s with
+  claude-sonnet-5-5: 67 values quote-verified, 0 rejected, 7 unknowns. Rules schema is too large
+  for grammar-constrained output, so that call uses schema-in-prompt + pydantic + 1 retry.
 - [ ] S3 Sat 14 Nov 10:00. Select.
   LLM scoring per the select-clips skill, snapping to word timestamps, rules-aware prompt,
   clips.json written. Accept: snapper unit tests, including a rejected mismatch.

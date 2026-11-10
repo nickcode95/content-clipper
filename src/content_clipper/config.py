@@ -32,3 +32,14 @@ def _load_yaml(path: Path) -> dict:
 
 def load_transcribe_config(path: Path = CONFIG_DIR / "transcribe.yaml") -> TranscribeConfig:
     return TranscribeConfig.model_validate(_load_yaml(path))
+
+
+class ModelsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selection: str  # brief -> rules drafting, clip selection, captions
+    light: str  # cheap tasks: research keywords, advisory QA review
+
+
+def load_models_config(path: Path = CONFIG_DIR / "models.yaml") -> ModelsConfig:
+    return ModelsConfig.model_validate(_load_yaml(path))

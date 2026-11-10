@@ -8,14 +8,24 @@ docs/examples/.
 ## Life cycle
 1. `content-clipper campaign add <name> --brief <file>` stores brief.md and asks the LLM to draft
    rules.yaml. Each value the LLM fills must come with a verbatim quote from the brief (`evidence`).
-   Code checks the quote exists in brief.md; if not, the value is reset to null and a question is
-   added to `unknowns`.
+   "Fills" means every value that differs from the template default, and every list item.
+   Code checks the quote exists in brief.md (case-insensitive, whitespace-collapsed); numbers must
+   appear in their quote; text pasted into posts (mentions, disclosure tags, required-line options,
+   example captions, forbidden phrases) must appear verbatim in the brief. On any failure the value
+   is reset to the template default (null for safety fields) and a question is added to `unknowns`.
+   Code: src/content_clipper/campaign/draft.py.
 2. A human reads the draft next to brief.md, answers the unknowns, edits, then runs
    `content-clipper campaign approve <name>` which sets status: reviewed and stores brief_sha256.
-3. select, caption, render and qa refuse to run while status is draft.
-4. If brief.md changes later, the hash no longer matches: QA warns and status goes back to draft.
+   Approve refuses inconsistent rules (store.problems) and keeps comments in rules.yaml.
+3. select, caption, render and qa refuse to run while status is draft (`store.require_reviewed`).
+   `checklist <name>` prints what a human must check: checklist, posting rules, other_rules, unknowns.
+4. If brief.md changes later, the hash no longer matches: every stage treats the campaign as draft
+   (rules.yaml text is left alone) until a human runs `campaign approve` again. A hand-edited
+   `status: reviewed` without a stored hash is also treated as draft.
 5. Rules that fit no field go to `other_rules` (never dropped). Do not hardcode them. If the same
-   kind of rule keeps appearing, propose a schema change instead.
+   kind of rule keeps appearing, propose a schema change instead. Rules about which account or
+   channel to post on go in `posting.account_notes` (shown by `checklist`) until a publish stage
+   needs them structured.
 
 ## Who reads which field
 

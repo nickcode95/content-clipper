@@ -1,0 +1,227 @@
+{
+  "rules": {
+    "valid_until": null,
+    "platforms": [
+      "tiktok",
+      "instagram"
+    ],
+    "rate_per_1k_views": null,
+    "source": {
+      "policy": "official_only",
+      "location_notes": "official content folder",
+      "require_registry": true
+    },
+    "video": {
+      "min_length_s": 8.0,
+      "max_length_s": null,
+      "language": "en",
+      "quality_notes": []
+    },
+    "audio": {
+      "music_allowed": false,
+      "ai_voice_allowed": false,
+      "original_audio_only": true
+    },
+    "caption": {
+      "required_mentions": [
+        {
+          "text": "@acmestudio",
+          "platforms": [
+            "tiktok",
+            "instagram"
+          ]
+        }
+      ],
+      "disclosure": {
+        "required": true,
+        "accepted_tags": [
+          "#Ad"
+        ],
+        "must_be_first_hashtag": true,
+        "own_line": true,
+        "after_caption_text": true
+      },
+      "max_additional_hashtags": 2,
+      "hashtags_must_relate": true,
+      "max_length_chars": null,
+      "required_lines": [
+        {
+          "id": "availability",
+          "where": "caption",
+          "verbatim": true,
+          "options": [
+            "Out now on all platforms"
+          ],
+          "expires": null
+        }
+      ],
+      "forbidden_phrases": [],
+      "example_captions": [],
+      "style_notes": [
+        "keep it genuine",
+        "no made-up facts, stats or dates"
+      ]
+    },
+    "allowed_facts": [
+      "Out now on all platforms"
+    ],
+    "on_screen_text": {
+      "policy": "optional",
+      "must_match_screen": true,
+      "notes": []
+    },
+    "hook_style": {
+      "mode": "descriptive",
+      "notes": [
+        "no exaggerated hooks, rage bait"
+      ]
+    },
+    "prohibited": [
+      "exaggerated hooks, rage bait",
+      "reposting another creator's video"
+    ],
+    "posting": {
+      "max_posts_per_clip": 3,
+      "same_clip_on_multiple_accounts": null,
+      "same_clip_across_platforms": null,
+      "min_days_live": 14,
+      "dedicated_page_required": null,
+      "account_notes": []
+    },
+    "checklist": [
+      "Minimum 1% engagement rate",
+      "Likes must be visible",
+      "Posts stay live for 14 days"
+    ],
+    "other_rules": [],
+    "unknowns": [
+      "Does posting the same clip to TikTok and Instagram count as the same clip on multiple accounts?"
+    ]
+  },
+  "evidence": [
+    {
+      "path": "platforms[0]",
+      "quote": "TikTok, Instagram Reels"
+    },
+    {
+      "path": "platforms[1]",
+      "quote": "TikTok, Instagram Reels"
+    },
+    {
+      "path": "source.policy",
+      "quote": "Use only footage from the content folder."
+    },
+    {
+      "path": "source.location_notes",
+      "quote": "Clip the launch trailer from the official content folder"
+    },
+    {
+      "path": "video.min_length_s",
+      "quote": "Minimum 8 seconds."
+    },
+    {
+      "path": "video.language",
+      "quote": "English only."
+    },
+    {
+      "path": "audio.music_allowed",
+      "quote": "No added music."
+    },
+    {
+      "path": "audio.ai_voice_allowed",
+      "quote": "No AI voiceovers."
+    },
+    {
+      "path": "audio.original_audio_only",
+      "quote": "No added music. No AI voiceovers."
+    },
+    {
+      "path": "caption.required_mentions[0]",
+      "quote": "Tag @acmestudio."
+    },
+    {
+      "path": "caption.disclosure.required",
+      "quote": "Add #Ad as the first hashtag on its own line after the caption text."
+    },
+    {
+      "path": "caption.disclosure.accepted_tags[0]",
+      "quote": "Add #Ad as the first hashtag on its own line after the caption text."
+    },
+    {
+      "path": "caption.disclosure.must_be_first_hashtag",
+      "quote": "Add #Ad as the first hashtag on its own line after the caption text."
+    },
+    {
+      "path": "caption.disclosure.own_line",
+      "quote": "Add #Ad as the first hashtag on its own line after the caption text."
+    },
+    {
+      "path": "caption.disclosure.after_caption_text",
+      "quote": "Add #Ad as the first hashtag on its own line after the caption text."
+    },
+    {
+      "path": "caption.max_additional_hashtags",
+      "quote": "Up to 2 more hashtags that relate to the content."
+    },
+    {
+      "path": "caption.hashtags_must_relate",
+      "quote": "Up to 2 more hashtags that relate to the content."
+    },
+    {
+      "path": "caption.required_lines[0]",
+      "quote": "Every post must say \"Out now on all platforms\"."
+    },
+    {
+      "path": "caption.style_notes[0]",
+      "quote": "Keep it genuine."
+    },
+    {
+      "path": "caption.style_notes[1]",
+      "quote": "No made-up facts, stats or dates."
+    },
+    {
+      "path": "allowed_facts[0]",
+      "quote": "Every post must say \"Out now on all platforms\"."
+    },
+    {
+      "path": "on_screen_text.must_match_screen",
+      "quote": "If used it must match what is on screen."
+    },
+    {
+      "path": "hook_style.mode",
+      "quote": "Exaggerated hooks, rage bait"
+    },
+    {
+      "path": "hook_style.notes[0]",
+      "quote": "Exaggerated hooks, rage bait"
+    },
+    {
+      "path": "prohibited[0]",
+      "quote": "Exaggerated hooks, rage bait"
+    },
+    {
+      "path": "prohibited[1]",
+      "quote": "reposting another creator's video"
+    },
+    {
+      "path": "posting.max_posts_per_clip",
+      "quote": "posting the same clip more than 3 times."
+    },
+    {
+      "path": "posting.min_days_live",
+      "quote": "Posts must stay live for 14 days."
+    },
+    {
+      "path": "checklist[0]",
+      "quote": "Minimum 1% engagement rate."
+    },
+    {
+      "path": "checklist[1]",
+      "quote": "Likes must be visible."
+    },
+    {
+      "path": "checklist[2]",
+      "quote": "Posts must stay live for 14 days."
+    }
+  ]
+}

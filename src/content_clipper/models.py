@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -72,3 +75,124 @@ class Transcript(BaseModel):
             prev_seg = w.seg
             prev_end = w.end
         return self
+
+
+# --------------------------------------------------------------------------------------------
+# Campaign rules: campaigns/<name>/rules.yaml. Schema mirrors campaigns/_template/rules.yaml and
+# docs/CAMPAIGN_RULES.md. Defaults here equal the template defaults ("the brief does not say").
+# Models stay permissive about cross-field consistency (a draft may be incomplete); those checks
+# live in content_clipper.campaign.store.problems() and block approval instead.
+
+Platform = Literal["tiktok", "instagram", "youtube"]
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class SourceRules(_Strict):
+    policy: Literal["official_only", "own_footage_only", "any", "unknown"] = "unknown"
+    location_notes: str = ""
+    require_registry: bool = True
+
+
+class VideoRules(_Strict):
+    min_length_s: float | None = Field(default=None, ge=0)
+    max_length_s: float | None = Field(default=None, ge=0)
+    language: str | None = None
+    quality_notes: list[str] = []
+
+
+class AudioRules(_Strict):
+    music_allowed: bool | None = None  # null = treated as not allowed
+    ai_voice_allowed: bool | None = None  # null = treated as not allowed
+    original_audio_only: bool = False
+
+
+class Mention(_Strict):
+    text: str
+    platforms: list[Platform] = []  # empty = every platform in rules.platforms
+
+
+class Disclosure(_Strict):
+    required: bool = False
+    accepted_tags: list[str] = []
+    must_be_first_hashtag: bool = False
+    own_line: bool = False
+    after_caption_text: bool = False
+
+
+class RequiredLine(_Strict):
+    id: str
+    where: Literal["caption", "on_screen", "either"] = "either"
+    verbatim: bool = True
+    options: list[str] = []
+    expires: date | None = None
+
+
+class CaptionRules(_Strict):
+    required_mentions: list[Mention] = []
+    disclosure: Disclosure = Field(default_factory=Disclosure)
+    max_additional_hashtags: int | None = Field(default=None, ge=0)
+    hashtags_must_relate: bool = False
+    max_length_chars: int | None = Field(default=None, ge=1)
+    required_lines: list[RequiredLine] = []
+    forbidden_phrases: list[str] = []
+    example_captions: list[str] = []
+    style_notes: list[str] = []
+
+
+class OnScreenTextRules(_Strict):
+    policy: Literal["optional", "required", "forbidden"] = "optional"
+    must_match_screen: bool = False
+    notes: list[str] = []
+
+
+class HookStyle(_Strict):
+    mode: Literal["default", "descriptive", "none"] = "default"
+    notes: list[str] = []
+
+
+class PostingRules(_Strict):
+    max_posts_per_clip: int | None = Field(default=None, ge=1)
+    same_clip_on_multiple_accounts: Literal["allowed", "forbidden"] | None = None
+    same_clip_across_platforms: Literal["allowed", "forbidden"] | None = None
+    min_days_live: int | None = Field(default=None, ge=0)
+    dedicated_page_required: bool | None = None
+    account_notes: list[str] = []
+
+
+class CampaignRulesBody(_Strict):
+    """Everything in rules.yaml that comes from the brief (what the LLM drafts)."""
+
+    valid_until: date | None = None
+    platforms: list[Platform] = []
+    rate_per_1k_views: float | None = Field(default=None, ge=0)
+    source: SourceRules = Field(default_factory=SourceRules)
+    video: VideoRules = Field(default_factory=VideoRules)
+    audio: AudioRules = Field(default_factory=AudioRules)
+    caption: CaptionRules = Field(default_factory=CaptionRules)
+    allowed_facts: list[str] = []
+    on_screen_text: OnScreenTextRules = Field(default_factory=OnScreenTextRules)
+    hook_style: HookStyle = Field(default_factory=HookStyle)
+    prohibited: list[str] = []
+    posting: PostingRules = Field(default_factory=PostingRules)
+    checklist: list[str] = []
+    other_rules: list[str] = []
+    unknowns: list[str] = []
+
+
+class CampaignRules(CampaignRulesBody):
+    """campaigns/<name>/rules.yaml: the brief-derived body plus bookkeeping."""
+
+    schema_version: Literal[1] = 1
+    name: str
+    status: Literal["draft", "reviewed"] = "draft"
+    brief_file: str = "brief.md"
+    brief_sha256: str = ""
+    evidence: dict[str, str] = {}  # dotted.path or list.path[i] -> verbatim quote from the brief
+
+    def body(self) -> CampaignRulesBody:
+        return CampaignRulesBody.model_validate(
+            self.model_dump(include=set(CampaignRulesBody.model_fields))
+        )

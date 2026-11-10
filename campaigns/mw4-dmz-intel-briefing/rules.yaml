@@ -1,0 +1,197 @@
+# Drafted by `content-clipper campaign add` from brief.md. Status stays draft until a human
+# checks every value against brief.md, answers the unknowns, and runs:
+#   uv run content-clipper campaign approve mw4-dmz-intel-briefing
+# null means "the brief does not say". For music, AI voice and source, null means NOT allowed.
+schema_version: 1
+name: mw4-dmz-intel-briefing
+status: draft
+brief_file: brief.md
+brief_sha256: ''
+valid_until: null
+platforms:
+- tiktok
+- instagram
+rate_per_1k_views: null
+source:
+  policy: official_only
+  location_notes: 'Content folder: https://app.mediasilo.com/review/6aee70ddb93f5a144f86aadf'
+  require_registry: true
+video:
+  min_length_s: 10.0
+  max_length_s: null
+  language: en
+  quality_notes:
+  - High-quality posts only. No blurry or low-effort content.
+audio:
+  music_allowed: false
+  ai_voice_allowed: false
+  original_audio_only: true
+caption:
+  required_mentions:
+  - text: '@callofduty'
+    platforms:
+    - tiktok
+    - instagram
+  disclosure:
+    required: true
+    accepted_tags:
+    - '#Ad'
+    - '#Advertisement'
+    - '#Sponsored'
+    must_be_first_hashtag: true
+    own_line: true
+    after_caption_text: true
+  max_additional_hashtags: 3
+  hashtags_must_relate: true
+  max_length_chars: null
+  required_lines:
+  - id: free_trial
+    where: either
+    verbatim: true
+    options:
+    - DMZ is Free to play until November 11th
+    - DMZ gets free access for a limited time
+    expires: null
+  forbidden_phrases: []
+  example_captions:
+  - New MW4 DMZ BlackSite XO1 Looks Insane @callofduty
+  - DMZ Gets a Big Update in MW4 Season 1 @callofduty
+  - DMZ is Free to play until November 11th @callofduty
+  style_notes:
+  - Make the caption match the clip.
+  - Keep it genuine. Write what a real fan would say.
+  - Keep it true. No made-up facts, stats, or dates.
+  - Write your own. Do not copy other clippers' captions.
+  - Use one of the captions below, or write your own close to them.
+allowed_facts:
+- Show the new DMZ content in Modern Warfare 4 Season 1.
+- DMZ Gets a Big Update in MW4 Season 1
+- 'New DMZ location in Season 1: X01'
+- Ghost briefs the squad on X01
+- DMZ is Free to play until November 11th
+- DMZ gets free access for a limited time
+on_screen_text:
+  policy: optional
+  must_match_screen: true
+  notes:
+  - On-screen text is optional, unless it carries the free trial line.
+  - Keep it short, clear, and easy to read.
+  - Same rule as captions. Keep it genuine and true.
+hook_style:
+  mode: descriptive
+  notes: []
+prohibited:
+- Footage not from the official content folder
+- Posts with no free trial mention
+- Low-quality or lazy uploads
+- NSFW, violent, or controversial content
+- Racist, homophobic, or sexual content = instant ban
+- Reposting another creator's video as your own
+- Exaggerated hooks, rage bait, or hate bait
+- False or made-up claims, stats, or dates
+- Mislabeling the content (a trailer is not "gameplay")
+- Any added music
+- AI voiceovers or AI-generated voices
+- 'Bait posting: unrelated viral content to farm views'
+- 'Spam posting: the same video on multiple accounts'
+posting:
+  max_posts_per_clip: 5
+  same_clip_on_multiple_accounts: forbidden
+  same_clip_across_platforms: null
+  min_days_live: 30
+  dedicated_page_required: false
+  account_notes:
+  - You can post on any page.
+checklist:
+- Minimum 0.50% engagement rate (1,000 views = at least 5 likes)
+- Likes must be visible. Hidden likes = automatic rejection.
+- Page audience should be mostly Tier 1-2 countries (30%+ Tier 3 may be removed)
+- 'Story boosting: story views do not count'
+- Paid promotion or ads of any kind = permanent ban
+other_rules:
+- The disclosure hashtag must use the same font, size, and color as the rest of the caption.
+- By participating you agree to make your post FTC compliant.
+- Clip the DMZ Intel Briefing video from the official content folder.
+- Questions go to the Clipping Culture team, not the client.
+unknowns:
+- No campaign end date is given, so valid_until is null. Is there one?
+- The line "DMZ is Free to play until November 11th" stops being true after November 11th, which is tomorrow
+  (today is 2026-11-10). Will the brief be updated, and may only "DMZ gets free access for a limited time"
+  be used after that date? The same applies to the example caption that uses this line.
+- The brief says to use one of the example captions or write one close to them, but also says "Write your
+  own. Do not copy other clippers' captions." May the example captions be used word for word?
+- The location is spelled "XO1" in one example caption and "X01" in the on-screen text examples. Which
+  spelling is correct?
+- The brief says "Post to TikTok and Instagram Reels" in one place and "Post to TikTok or Instagram Reels"
+  in another. May the same clip be posted on both platforms?
+- Does the limit of 5 posts of the same video apply per account, per platform, or in total? How does it
+  fit with the ban on the same video on multiple accounts?
+- Which countries count as Tier 1, Tier 2 and Tier 3?
+evidence:
+  platforms[0]: TikTok, Instagram Reels
+  platforms[1]: TikTok, Instagram Reels
+  source.policy: Use only footage from the official content folder.
+  source.location_notes: 'Content folder: https://app.mediasilo.com/review/6aee70ddb93f5a144f86aadf'
+  video.min_length_s: 'Minimum video length: 10 seconds'
+  video.language: English content only
+  video.quality_notes[0]: High-quality posts only. No blurry or low-effort content.
+  audio.music_allowed: 'Background music: NOT ALLOWED.'
+  audio.ai_voice_allowed: No AI voices.
+  audio.original_audio_only: Use only the audio from the official assets.
+  caption.required_mentions[0]: Tag @callofduty (TikTok and Instagram)
+  caption.disclosure.required: 'Every post MUST include one of these in the caption:'
+  caption.disclosure.accepted_tags[0]: '#Ad'
+  caption.disclosure.accepted_tags[1]: '#Advertisement'
+  caption.disclosure.accepted_tags[2]: '#Sponsored'
+  caption.disclosure.must_be_first_hashtag: It must be the first hashtag.
+  caption.disclosure.own_line: Put it on its own line, right after the caption text.
+  caption.disclosure.after_caption_text: Put it on its own line, right after the caption text.
+  caption.max_additional_hashtags: Up to 3 more hashtags are allowed.
+  caption.hashtags_must_relate: They must relate to the content.
+  caption.required_lines[0]: Every post must mention the DMZ Free Trial.
+  caption.example_captions[0]: New MW4 DMZ BlackSite XO1 Looks Insane @callofduty
+  caption.example_captions[1]: DMZ Gets a Big Update in MW4 Season 1 @callofduty
+  caption.example_captions[2]: DMZ is Free to play until November 11th @callofduty
+  caption.style_notes[0]: Make the caption match the clip.
+  caption.style_notes[1]: Keep it genuine. Write what a real fan would say.
+  caption.style_notes[2]: Keep it true. No made-up facts, stats, or dates.
+  caption.style_notes[3]: Write your own. Do not copy other clippers' captions.
+  caption.style_notes[4]: Use one of the captions below, or write your own close to them.
+  allowed_facts[0]: Show the new DMZ content in Modern Warfare 4 Season 1.
+  allowed_facts[1]: DMZ Gets a Big Update in MW4 Season 1
+  allowed_facts[2]: 'New DMZ location in Season 1: X01'
+  allowed_facts[3]: Ghost briefs the squad on X01
+  allowed_facts[4]: DMZ is Free to play until November 11th
+  allowed_facts[5]: DMZ gets free access for a limited time
+  on_screen_text.must_match_screen: If you add it, it must match what is on screen.
+  on_screen_text.notes[0]: On-screen text is optional, unless it carries the free trial line.
+  on_screen_text.notes[1]: Keep it short, clear, and easy to read.
+  on_screen_text.notes[2]: Same rule as captions. Keep it genuine and true.
+  hook_style.mode: Exaggerated hooks, rage bait, or hate bait
+  prohibited[0]: Footage not from the official content folder
+  prohibited[1]: Posts with no free trial mention
+  prohibited[2]: Low-quality or lazy uploads
+  prohibited[3]: NSFW, violent, or controversial content
+  prohibited[4]: Racist, homophobic, or sexual content = instant ban
+  prohibited[5]: Reposting another creator's video as your own
+  prohibited[6]: Exaggerated hooks, rage bait, or hate bait
+  prohibited[7]: False or made-up claims, stats, or dates
+  prohibited[8]: Mislabeling the content (a trailer is not "gameplay")
+  prohibited[9]: Any added music
+  prohibited[10]: AI voiceovers or AI-generated voices
+  prohibited[11]: 'Bait posting: unrelated viral content to farm views'
+  prohibited[12]: 'Spam posting: the same video on multiple accounts'
+  posting.max_posts_per_clip: Posting the same video more than 5 times
+  posting.same_clip_on_multiple_accounts: 'Spam posting: the same video on multiple accounts'
+  posting.min_days_live: Post must stay live for 30 days minimum
+  posting.dedicated_page_required: You do not need a dedicated page for this campaign.
+  posting.account_notes[0]: You can post on any page.
+  checklist[0]: Minimum 0.50% engagement rate (1,000 views = at least 5 likes)
+  checklist[1]: Likes must be visible. Hidden likes = automatic rejection.
+  checklist[2]: Page audience should be mostly Tier 1-2 countries (30%+ Tier 3 may be removed)
+  checklist[3]: 'Story boosting: story views do not count'
+  checklist[4]: Paid promotion or ads of any kind = permanent ban
+  other_rules[0]: Same font, size, and color as the rest of the caption.
+  other_rules[1]: By participating you agree to make your post FTC compliant
+  other_rules[2]: Clip the DMZ Intel Briefing video from the official content folder.
+  other_rules[3]: Contact the Clipping Culture team, not the client.
