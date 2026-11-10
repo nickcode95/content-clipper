@@ -63,7 +63,9 @@ Trend brief: data/research/<campaign>.trend_brief.json
     }
 
 emotion is one of anticipation, speculation, excitement, intrigue, nostalgia, frustration.
-Clips carry hook_options (validated suggestions) and hook_line (the chosen one).
+Clips carry hook_options (validated suggestions) and hook_line (the chosen one). A variant clip
+(`c01-2`, variant_of: "c01") has the same cut with a different hook; variants count as the same
+video for posting limits.
 
 Campaign rules: campaigns/<name>/rules.yaml (see campaigns/_template).
 Renders: data/out/<campaign>/<video_id>/<clip_id>.mp4 plus sidecar files (see Campaign-aware stages below).

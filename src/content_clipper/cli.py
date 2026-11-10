@@ -351,13 +351,19 @@ def hooks(
 
 
 @app.command("pick-hook")
-def pick_hook_cmd(video_id: str, clip_id: str, option: str) -> None:
-    """Human choice: use hook option N for CLIP_ID (then re-render)."""
+def pick_hook_cmd(
+    video_id: str,
+    clip_id: str,
+    choices: Annotated[list[str], typer.Argument(
+        help="Option numbers and/or your own hook text. The 2nd, 3rd... become variant clips.")],
+) -> None:
+    """Human choice of hook(s) for CLIP_ID; extra choices make variants (then re-render)."""
     try:
-        c = hk.pick_hook(Path("data/clips") / f"{video_id}.clips.json", clip_id, option)
-    except (hk.HookError, FileNotFoundError) as e:
+        done = hk.choose_hooks(Path("data/clips") / f"{video_id}.clips.json", clip_id, choices)
+    except (hk.HookError, store.CampaignError, FileNotFoundError) as e:
         _fail(str(e))
-    typer.echo(f"{c.id} hook: {c.hook_line}")
+    for c in done:
+        typer.echo(f"{c.id:7s} hook: {c.hook_line}")
 
 
 if __name__ == "__main__":

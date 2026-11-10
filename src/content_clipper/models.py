@@ -253,6 +253,8 @@ class Clip(_Strict):
     scores: dict[str, float]
     reason: str
     speech_cut: bool = False  # True when a sentence had to be cut at the start or end
+    variant_of: str | None = None  # same cut as this clip id, different hook (same video for
+    #                                posting limits)
     approved: bool | None = None  # set by a human; render only uses approved == true
 
 

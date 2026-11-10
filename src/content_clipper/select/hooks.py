@@ -210,17 +210,55 @@ def regenerate_hooks(
     return clips, rejected
 
 
-def pick_hook(clips_path: Path, clip_id: str, choice: str) -> Clip:
-    """Human action: set hook_line to option N (1-based) from hook_options."""
+def choose_hooks(
+    clips_path: Path,
+    clip_id: str,
+    choices: list[str],
+    *,
+    data: Path = Path("data"),
+    campaigns_root: Path = Path("campaigns"),
+    research_dir: Path = RESEARCH_DIR,
+) -> list[Clip]:
+    """Human choice of hook(s) for a clip. Each choice is an option number (1-based) or own text.
+
+    The first choice becomes the clip's hook_line. Every further choice becomes a variant clip
+    `<clip_id>-2`, `-3`...: same cut and approval, different hook, variant_of = clip_id. Earlier
+    variants of the clip are replaced. Own text gets the same code checks as generated options.
+    """
+    if not choices:
+        raise HookError("give at least one option number or hook text")
     clips = ClipsFile.model_validate_json(clips_path.read_text(encoding="utf-8"))
-    clip = next((x for x in clips.clips if x.id == clip_id), None)
-    if clip is None:
-        raise HookError(f"no clip {clip_id!r} in {clips_path}")
-    if not choice.isdigit() or not 1 <= int(choice) <= len(clip.hook_options):
-        raise HookError(f"{clip_id} has {len(clip.hook_options)} hook options; pick 1-"
-                        f"{len(clip.hook_options)}")
-    clip.hook_line = clip.hook_options[int(choice) - 1]
+    base = next((x for x in clips.clips if x.id == clip_id and x.variant_of is None), None)
+    if base is None:
+        raise HookError(f"no clip {clip_id!r} in {clips_path} (pick hooks on the original clip)")
+    c = require_reviewed(clips.campaign, campaigns_root)
+    transcript = Transcript.model_validate_json(
+        (data / "transcripts" / f"{clips.video_id}.json").read_text(encoding="utf-8"))
+    trend = load_trend_brief(clips.campaign, research_dir)
+
+    hooks: list[str] = []
+    for ch in choices:
+        if ch.strip().isdigit():
+            n = int(ch)
+            if not 1 <= n <= len(base.hook_options):
+                raise HookError(f"{clip_id} has {len(base.hook_options)} hook options; pick 1-"
+                                f"{len(base.hook_options)} or give your own text")
+            hooks.append(base.hook_options[n - 1])
+            continue
+        kept, bad = valid_options([ch], c=c, narration=clip_narration(transcript, base),
+                                  research_n=research_text(trend), names=reference_names(trend))
+        if bad:
+            raise HookError(f"hook rejected: {bad[0]}")
+        hooks.append(kept[0])
+
+    base.hook_line = hooks[0]
+    variants = [base.model_copy(update={"id": f"{base.id}-{k}", "hook_line": h,
+                                        "variant_of": base.id, "title": f"{base.title} (hook {k})"})
+                for k, h in enumerate(hooks[1:], start=2)]
+    rest = [x for x in clips.clips if x.variant_of != base.id]
+    i = rest.index(base) + 1
+    clips.clips = rest[:i] + variants + rest[i:]
     tmp = clips_path.with_name(clips_path.name + ".tmp")
     tmp.write_text(clips.model_dump_json(indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, clips_path)
-    return clip
+    return [base, *variants]

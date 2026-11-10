@@ -27,8 +27,9 @@ Rules (video-aware; code in src/content_clipper/select/core.py):
    the campaign rules. Code drops options with numbers not in the clip, brief, allowed_facts or
    fan_reference names, forbidden phrases, or 5-word runs copied from the research notes.
    `hooks <campaign> <video_id>` refreshes options without touching cuts or approvals;
-   `pick-hook <video_id> <clip_id> <n>` is the human choice. Never copy trend-brief example
-   titles verbatim.
+   `pick-hook <video_id> <clip_id> <n|text>...` is the human choice: option numbers or own text
+   (checked the same way); each extra choice makes a variant clip <clip_id>-2, -3 with the same
+   cut. Never copy trend-brief example titles verbatim.
 7. Use the selection model in config/models.yaml (no temperature setting on current models).
 
 System prompt: `SYSTEM` and `HOOK_GUIDE` in src/content_clipper/select/core.py.

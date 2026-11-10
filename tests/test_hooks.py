@@ -12,8 +12,8 @@ from content_clipper.models import ClipsFile, TrendBrief, TrendBriefBody
 from content_clipper.research.manual import add_notes, load_trend_brief
 from content_clipper.select.hooks import (
     HookError,
+    choose_hooks,
     hook_problems,
-    pick_hook,
     regenerate_hooks,
     trend_section,
 )
@@ -137,8 +137,20 @@ def test_regenerate_hooks_keeps_cuts_and_approval(ws, monkeypatch):
     assert c.hook_line == "old hook" and c.approved is True and c.start_s == 4.0
     assert "9/10" in rejected["c01"][0]
 
-    picked = pick_hook(path, "c01", "2")
-    assert picked.hook_line == "The squad moves in"
-    assert ClipsFile.model_validate_json(path.read_text()).clips[0].hook_line == picked.hook_line
+    done = choose_hooks(path, "c01", ["2", "1"])
+    assert [(c.id, c.hook_line, c.variant_of) for c in done] == [
+        ("c01", "The squad moves in", None), ("c01-2", "North Korea owns it now", "c01")]
+    saved = ClipsFile.model_validate_json(path.read_text())
+    assert [c.id for c in saved.clips] == ["c01", "c01-2"]
+    assert saved.clips[1].approved is True and saved.clips[1].start_s == 4.0
+
+    done = choose_hooks(path, "c01", ["anyone else thinking about the squad?"])  # own text
+    assert done[0].hook_line == "anyone else thinking about the squad?"
+    assert [c.id for c in ClipsFile.model_validate_json(path.read_text()).clips] == ["c01"]
+
     with pytest.raises(HookError, match="pick 1-2"):
-        pick_hook(path, "c01", "5")
+        choose_hooks(path, "c01", ["5"])
+    with pytest.raises(HookError, match="'84'"):
+        choose_hooks(path, "c01", ["rated 84 by critics"])
+    with pytest.raises(HookError, match="no clip"):
+        choose_hooks(path, "c01-2", ["1"])
