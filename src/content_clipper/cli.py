@@ -16,10 +16,12 @@ from content_clipper.campaign import store
 from content_clipper.config import (
     CONFIG_DIR,
     load_models_config,
+    load_render_config,
     load_rubric_config,
     load_transcribe_config,
 )
 from content_clipper.llm import LLMError
+from content_clipper.render import core as rnd
 from content_clipper.select import core as sel
 from content_clipper.transcribe import core as tx
 
@@ -242,6 +244,48 @@ def select_cmd(
                                      for r in result.rejected])
     typer.echo(f"\nWrote data/clips/{video_id}.clips.json. Set \"approved\": true on the clips "
                "you want rendered.")
+
+
+
+@app.command("approve-clips")
+def approve_clips(
+    video_id: str,
+    clip_ids: Annotated[list[str], typer.Argument(help="Clip ids, e.g. c01 c03.")],
+    reject: Annotated[bool, typer.Option(help="Mark them rejected instead.")] = False,
+) -> None:
+    """Human sign-off: mark clips in data/clips/VIDEO_ID.clips.json approved for rendering."""
+    path = Path("data/clips") / f"{video_id}.clips.json"
+    if not path.exists():
+        _fail(f"{path} not found")
+    try:
+        clips = rnd.set_approval(path, clip_ids, approved=not reject)
+    except rnd.RenderError as e:
+        _fail(str(e))
+    for c in clips.clips:
+        state = {True: "approved", False: "rejected", None: "undecided"}[c.approved]
+        typer.echo(f"{c.id}  {state:10s} {c.title}")
+
+
+@app.command()
+def render(
+    campaign: str,
+    video_id: str,
+    clip: Annotated[list[str] | None, typer.Option(help="Only these clip ids.")] = None,
+) -> None:
+    """Render CAMPAIGN's approved clips of VIDEO_ID to data/out/<campaign>/<video_id>/."""
+    import time
+
+    cfg = load_render_config()
+    typer.echo(f"Rendering approved clips of {video_id} ({cfg.layout.mode} layout, "
+               f"{cfg.layout.background} background, hook {cfg.layout.hook_position}) ...")
+    t0 = time.perf_counter()
+    try:
+        done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None)
+    except (store.CampaignError, rnd.RenderError, ValidationError) as e:
+        _fail(str(e))
+    for r in done:
+        typer.echo(f"{r.render_json['clip_id']}  {r.duration_s:5.2f} s  {r.path}")
+    typer.echo(f"wall time {time.perf_counter() - t0:.1f} s for {len(done)} clip(s)")
 
 
 if __name__ == "__main__":

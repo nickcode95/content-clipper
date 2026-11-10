@@ -92,7 +92,7 @@ Flow: brief.md -> campaign add -> rules.yaml (draft) -> human review -> campaign
 -> select -> HUMAN clip approval -> caption -> render -> qa -> HUMAN final approval -> publish.
 
 Commands (Typer): `campaign add <name> --brief <file>`, `campaign show <name>`, `campaign approve <name>`,
-`select <campaign> <video_id>`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
+`transcribe <video>`, `analyze <video>`, `select <campaign> <video_id>`, `approve-clips <video_id> <clip_id>...`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
 `qa <campaign> <video_id>`, `approve <campaign> <video_id> <clip_id>`, `checklist <campaign>`.
 
 Output layout: data/out/<campaign>/<video_id>/ with, per clip_id:

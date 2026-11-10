@@ -17,7 +17,16 @@ Settings come from config/render.yaml. Render only clips with approved == true.
   speech with `sidechaincompress`, then `amix`, with fades from config.music.
 - Music must come from the music-licensing skill. If no track is eligible, render without music.
 - Save ffmpeg stderr to a .log next to the output and fail loudly on a non-zero exit.
-- Face-tracked crop: OpenCV Haar cascade, smoothed, with a centre-crop fallback (see docs/ARCHITECTURE.md).
+- Layout (config/render.yaml `layout`): `band` puts the full-width video in the middle of the
+  1080x1920 canvas over a blurred, darkened copy of itself (`background: blur`) or a solid colour.
+  The hook goes in the band below the video (`hook_position: below`) and the word captions in the
+  band above; swap with `hook_position: above`. `hook.seconds: 0` keeps the hook up for the whole
+  clip. Text is wrapped and sized in code and every text box is checked against the safe area.
+- Game footage rarely has faces, so face tracking is not the default. An action-following 9:16
+  crop is planned as a second layout (S5).
+- Human gate: `content-clipper approve-clips <video_id> c01 c02` sets approved: true; `render
+  <campaign> <video_id>` renders only approved clips and re-checks the campaign and the registry.
+- Code: src/content_clipper/render/core.py.
 
 <!-- campaign-aware -->
 ## Campaign awareness
