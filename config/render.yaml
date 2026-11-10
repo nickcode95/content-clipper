@@ -11,7 +11,9 @@ captions:
   max_words_per_line: 4
   safe_top_pct: 10       # platform UI covers the top 10% and bottom 20%: no text there
   safe_bottom_pct: 20
-hook: {seconds: 0, size: 64}   # seconds: 0 = show the hook for the whole clip
+# seconds: 0 = show the hook for the whole clip. style: text | tweet (a tweet-style card with a
+# persona from assets/personas/; or pass --hook-style tweet to render).
+hook: {seconds: 0, size: 64, style: text, tweet_theme: light}
 layout:
   mode: band             # band: full-width video in the middle, text bands above and below
   background: blur       # blur = blurred, darkened copy of the video | color

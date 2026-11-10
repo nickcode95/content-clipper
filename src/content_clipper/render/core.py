@@ -33,6 +33,7 @@ from content_clipper.models import (
     ShotAnalysis,
     Transcript,
 )
+from content_clipper.render import tweet
 from content_clipper.sources import is_registered
 
 CHAR_W = 0.6  # average glyph width of DejaVu Sans Bold, as a fraction of the font size
@@ -283,16 +284,24 @@ def hook_for(clip: Clip, rules: CampaignRules) -> str | None:
     return clip.hook_line.strip() or None
 
 
-def crop_filter_graph(plan: CropPlan, cfg: RenderConfig) -> str:
+def _finish(cfg: RenderConfig, card_xy: tuple[int, int] | None) -> str:
+    """[base] -> optional card overlay (input 1) -> captions -> [v]."""
+    over = f"[base][1:v]overlay=x={card_xy[0]}:y={card_xy[1]}," if card_xy else "[base]"
+    return f"{over}ass=clip.ass,format={cfg.video.pix_fmt}[v]"
+
+
+def crop_filter_graph(plan: CropPlan, cfg: RenderConfig,
+                      card_xy: tuple[int, int] | None = None) -> str:
     return (f"[0:v]fps={cfg.fps},crop=w={plan.w}:h={plan.h}:x='{crop_x_expr(plan)}':y={plan.y},"
-            f"scale={cfg.width}:{cfg.height},setsar=1,ass=clip.ass,format={cfg.video.pix_fmt}[v]")
+            f"scale={cfg.width}:{cfg.height},setsar=1[base];" + _finish(cfg, card_xy))
 
 
-def filter_graph(geom: BandGeometry, cfg: RenderConfig) -> str:
+def filter_graph(geom: BandGeometry, cfg: RenderConfig,
+                 card_xy: tuple[int, int] | None = None) -> str:
     W, H, fps = cfg.width, cfg.height, cfg.fps
     fg = (f"[fgsrc]scale={geom.video_w}:{geom.video_h}[fg];"
-          f"[bg][fg]overlay=x={geom.video_x}:y={geom.video_y}:shortest=1,"
-          f"ass=clip.ass,format={cfg.video.pix_fmt}[v]")
+          f"[bg][fg]overlay=x={geom.video_x}:y={geom.video_y}:shortest=1[base];"
+          + _finish(cfg, card_xy))
     if cfg.layout.background == "blur":
         return (f"[0:v]fps={fps},split=2[bgsrc][fgsrc];"
                 f"[bgsrc]scale={W // 4}:{H // 4}:force_original_aspect_ratio=increase,"
@@ -320,6 +329,9 @@ def render_clip(
     out_dir: Path,
     layout: str = "band",
     shots: list[Shot] | None = None,
+    hook_style: str = "text",
+    personas_dir: Path = tweet.PERSONAS_DIR,
+    persona_history: Path = Path("data/personas_used.json"),
 ) -> Rendered:
     info = probe(source)
     vstream = next((s for s in info["streams"] if s["codec_type"] == "video"), None)
@@ -328,28 +340,58 @@ def render_clip(
     src_w, src_h = int(vstream["width"]), int(vstream["height"])
     dur = round(clip.end_s - clip.start_s, 3)
     plan = None
+    geom = crop_geometry(cfg) if layout == "crop" else band_geometry(cfg, src_w, src_h)
+    hook = hook_for(clip, rules)
+    card = card_xy = tweet_meta = None
+    if hook_style == "tweet" and hook:
+        persona, handle = tweet.pick_persona(tweet.load_personas(personas_dir), persona_history)
+        max_h = 420 if layout == "crop" else geom.hook.height - 16
+        try:
+            card = tweet.make_card(hook, persona, handle, width=cfg.width - 130, max_height=max_h,
+                                   theme=cfg.hook.tweet_theme)
+        except tweet.TweetError as e:
+            raise RenderError(str(e)) from e
+        cw, ch = card.size
+        if layout == "crop":  # card near the bottom of the safe area, captions just above it
+            top = geom.safe.bottom - ch - 24
+            geom = BandGeometry(0, 0, cfg.width, cfg.height, geom.safe, geom.hook,
+                                Box(max(geom.safe.top, top - 300), top - 20))
+        else:
+            top = geom.hook.center - ch // 2
+        card_xy = ((cfg.width - cw) // 2, top)
+        if top < geom.safe.top or top + ch > geom.safe.bottom:
+            raise RenderError(f"tweet card {top}-{top + ch} px leaves the safe area")
+        tweet_meta = {"persona": persona.base, "display_name": persona.display_name,
+                      "handle": handle, "text": hook}
+    ass_hook = None if layout == "crop" or card is not None else hook
     if layout == "crop":
-        geom, hook = crop_geometry(cfg), None  # full-screen: captions only, no hook
         plan = crop_plan(src_w, src_h, shots or [], clip)
-        graph = crop_filter_graph(plan, cfg)
+        graph = crop_filter_graph(plan, cfg, card_xy)
     else:
-        geom, hook = band_geometry(cfg, src_w, src_h), hook_for(clip, rules)
-        graph = filter_graph(geom, cfg)
-    subs = build_ass(clip_words(transcript, clip), hook, geom, cfg, dur)
+        graph = filter_graph(geom, cfg, card_xy)
+    subs = build_ass(clip_words(transcript, clip), ass_hook, geom, cfg, dur)
     for top, bottom in text_boxes(subs):
         if top < geom.safe.top or bottom > geom.safe.bottom:
             raise RenderError(f"text box {top}-{bottom} px leaves the safe area")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = clip.id if layout == "band" else f"{clip.id}.{layout}"  # band files keep plain names
+    # Default choices keep plain names (c01.mp4); others get suffixes (c01.crop.tweet.mp4).
+    stem = ".".join([clip.id] + ([layout] if layout != "band" else [])
+                    + (["tweet"] if card is not None else []))
     mp4, log = out_dir / f"{stem}.mp4", out_dir / f"{stem}.log"
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
         subs.save(str(tmp / "clip.ass"))
         shutil.copy(tmp / "clip.ass", out_dir / f"{stem}.ass")
+        card_input: list[str] = []
+        if card is not None:
+            card.save(tmp / "card.png")
+            shutil.copy(tmp / "card.png", out_dir / f"{stem}.card.png")
+            card_input = ["-i", "card.png"]
         cmd = [
             "ffmpeg", "-nostdin", "-hide_banner", "-y",
             "-ss", f"{clip.start_s:.3f}", "-t", f"{dur:.3f}", "-i", str(source.resolve()),
+            *card_input,
             "-filter_complex", graph, "-map", "[v]", "-map", "0:a:0",
             "-af", f"loudnorm={cfg.audio.loudnorm},aresample=48000",
             "-c:v", cfg.video.codec, "-preset", cfg.video.preset, "-crf", str(cfg.video.crf),
@@ -373,7 +415,10 @@ def render_clip(
         "start_s": clip.start_s, "end_s": clip.end_s, "duration_s": round(got, 3),
         "layout": layout, "background": cfg.layout.background if layout == "band" else None,
         "crop": None if plan is None else {"w": plan.w, "h": plan.h, "xs": plan.xs},
-        "music": None, "ai_voice": False, "hook_text": hook, "on_screen_lines": [],
+        "music": None, "ai_voice": False,
+        "hook_text": hook if (card is not None or layout != "crop") else None,
+        "hook_style": "tweet" if card is not None else "text", "tweet": tweet_meta,
+        "on_screen_lines": [],
     }
     (out_dir / f"{stem}.render.json").write_text(json.dumps(meta, indent=2) + "\n")
     return Rendered(mp4, round(got, 3), meta)
@@ -405,10 +450,13 @@ def render_approved(
     cfg: RenderConfig,
     only: list[str] | None = None,
     layout: str | None = None,
+    hook_style: str | None = None,
     campaigns_root: Path = Path("campaigns"),
     data: Path = Path("data"),
+    personas_dir: Path = tweet.PERSONAS_DIR,
 ) -> list[Rendered]:
     layout = layout or cfg.layout.mode
+    hook_style = hook_style or cfg.hook.style
     c = require_reviewed(campaign, campaigns_root)
     registry = data / "sources" / "registry.csv"
     if c.rules.source.require_registry and not is_registered(video_id, campaign, registry):
@@ -420,7 +468,7 @@ def render_approved(
     if clips.campaign != campaign:
         raise RenderError(f"{clips_path} was selected for {clips.campaign!r}, not {campaign!r}")
     todo = [x for x in clips.clips if x.approved is True and (not only or x.id in only)]
-    if layout == "crop":  # no hook in this layout, so hook variants would be identical videos
+    if layout == "crop" and hook_style != "tweet":  # no hook, so variants would be identical
         todo = [x for x in todo if x.variant_of is None]
     if not todo:
         raise RenderError(
@@ -438,5 +486,7 @@ def render_approved(
         shots = ShotAnalysis.model_validate_json(a_path.read_text(encoding="utf-8")).shots
     out_dir = data / "out" / campaign / video_id
     return [render_clip(x, source=source, transcript=transcript, rules=c.rules,
-                        campaign=campaign, cfg=cfg, out_dir=out_dir, layout=layout, shots=shots)
+                        campaign=campaign, cfg=cfg, out_dir=out_dir, layout=layout, shots=shots,
+                        hook_style=hook_style, personas_dir=personas_dir,
+                        persona_history=data / "personas_used.json")
             for x in todo]

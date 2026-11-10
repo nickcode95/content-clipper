@@ -85,7 +85,9 @@ Results log: data/results.csv (header already created).
   of itself (or a solid colour), with the hook in the band below the video and captions in the
   band above. `crop` (`render --layout crop`) fills the 9:16 frame with a crop that follows the
   action: one position per shot from focus_x, centre fallback, captions only, no hook; files get a
-  `.crop` suffix (`c01.crop.mp4`) so band renders are never replaced. Game footage rarely has
+  `.crop` suffix (`c01.crop.mp4`) so band renders are never replaced. Hook style `tweet` draws
+  the hook as a tweet-style card with a rotating persona (assets/personas/, not committed) and
+  adds a `.tweet` suffix (`c01-3.tweet.mp4`). Game footage rarely has
   usable faces, so face tracking is not used.
 - Render: ffmpeg re-encode (never stream copy) to the settings in config/render.yaml.
 - QA: see Campaign-aware stages below. QA failures block publishing.

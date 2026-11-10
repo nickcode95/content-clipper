@@ -279,6 +279,9 @@ def render(
     layout: Annotated[str | None, typer.Option(
         help="band (video in the middle, hook band) or crop (full-screen 9:16, captions only). "
              "Default: layout.mode in config/render.yaml.")] = None,
+    hook_style: Annotated[str | None, typer.Option(
+        help="text or tweet (tweet-style card with a persona from assets/personas/). "
+             "Default: hook.style in config/render.yaml.")] = None,
 ) -> None:
     """Render CAMPAIGN's approved clips of VIDEO_ID to data/out/<campaign>/<video_id>/."""
     import time
@@ -287,16 +290,22 @@ def render(
     chosen = layout or cfg.layout.mode
     if chosen not in ("band", "crop"):
         _fail(f"unknown layout {chosen!r}: use band or crop")
+    style = hook_style or cfg.hook.style
+    if style not in ("text", "tweet"):
+        _fail(f"unknown hook style {style!r}: use text or tweet")
     detail = ("action-following crop, captions only" if chosen == "crop" else
               f"{cfg.layout.background} background, hook {cfg.layout.hook_position}")
     typer.echo(f"Rendering approved clips of {video_id} ({chosen} layout, {detail}) ...")
     t0 = time.perf_counter()
     try:
-        done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None, layout=chosen)
+        done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None, layout=chosen,
+                                   hook_style=style)
     except (store.CampaignError, rnd.RenderError, ValidationError) as e:
         _fail(str(e))
     for r in done:
-        typer.echo(f"{r.render_json['clip_id']}  {r.duration_s:5.2f} s  {r.path}")
+        t = r.render_json.get("tweet")
+        who = f"  as @{t['handle']}" if t else ""
+        typer.echo(f"{r.render_json['clip_id']}  {r.duration_s:5.2f} s  {r.path}{who}")
     typer.echo(f"wall time {time.perf_counter() - t0:.1f} s for {len(done)} clip(s)")
 
 

@@ -36,6 +36,9 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
   Done 11 Nov: analyze stores focus_x per shot (busiest 9:16 window, centre prior, None when still);
   `render --layout crop` cuts one crop position per shot (no panning inside a shot), captions only,
   files <clip>.crop.*; band renders untouched; hook variants skipped. 3 DMZ clips in 44 s.
+- [x] Tweet-style hook cards (11 Nov): personas from assets/personas/ (image + handle base), new
+  @handle digits per render, rotation; card in the band under the video or above the bottom of
+  the crop layout; Pillow added for text, rounded corners and round avatars.
 - [ ] S6 Fri 20 Nov 19:30. Caption stage and compliance QA, per the caption-generation and
   compliance-qa skills. Accept: all deterministic checks tested on the example campaign.
 - [ ] S7 Sat 21 Nov 10:00. First full run on a real campaign video, no music, end to end

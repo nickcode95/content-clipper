@@ -99,6 +99,8 @@ class CaptionStyle(_M):
 class HookStyleCfg(_M):
     seconds: float = Field(default=0, ge=0)  # 0 = whole clip
     size: int = Field(gt=0)
+    style: Literal["text", "tweet"] = "text"  # tweet = tweet-style card with a persona
+    tweet_theme: Literal["light", "dark"] = "light"
 
 
 class LayoutCfg(_M):

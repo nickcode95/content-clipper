@@ -26,6 +26,12 @@ Settings come from config/render.yaml. Render only clips with approved == true.
   the action, one crop position per shot from shots.json focus_x (centre when null), captions at
   layout.crop_caption_y, no hook. Writes <clip_id>.crop.* next to the band files and skips hook
   variants (they would be identical). Game footage rarely has faces, so no face tracking.
+- Tweet-style hook (`render ... --hook-style tweet`, or hook.style: tweet): the hook becomes a
+  card (round profile picture, display name, @handle, text; light or dark). Personas are images
+  in assets/personas/ named after the handle base (webp/png/jpg; names.yaml for display names);
+  each render picks a persona not used recently (data/personas_used.json) and adds 5 random
+  digits to the handle. No platform logo, verified badge or like/view counts. Files get a
+  `.tweet` suffix; render.json records persona and handle. Code: render/tweet.py.
 - Human gate: `content-clipper approve-clips <video_id> c01 c02` sets approved: true; `render
   <campaign> <video_id>` renders only approved clips and re-checks the campaign and the registry.
 - Code: src/content_clipper/render/core.py.

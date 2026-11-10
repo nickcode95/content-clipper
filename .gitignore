@@ -15,3 +15,4 @@ data/
 *.wav
 *.mp3
 .claude/settings.local.json
+assets/personas/
