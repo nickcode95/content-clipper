@@ -27,3 +27,14 @@ System prompt to start from:
     standalone 30-90 second videos. Score each on the given rubric keys from 0 to 10. Obey the
     campaign rules exactly. Return only JSON matching the schema. Do not invent text that is not
     in the transcript. The hook_line is a short original line that could open the clip.
+
+<!-- campaign-aware -->
+## Campaign awareness
+- Read campaigns/<name>/rules.yaml (status reviewed). Take length limits from video.min_length_s
+  and video.max_length_s, falling back to config/rubric.yaml when null.
+- Put `prohibited` and `other_rules` into the prompt verbatim and tell the model to reject any
+  window that breaks them (for example violent or controversial moments when the brief bans them).
+- If hook_style.mode is descriptive or none, score hook_strength as "clear and accurate
+  opening", not "attention-grabbing exaggeration", and do not reward clickbait.
+- Skip source videos that are not in data/sources/registry.csv when source.require_registry.
+- Write the campaign name into clips.json.

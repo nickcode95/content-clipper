@@ -17,3 +17,13 @@
   point [project.scripts] at it.
 - Skills in .claude/skills/ describe each stage. Follow them. Use /session-wrap to finish a session.
 - Never read .env. Never commit media, data/ or secrets. Never push.
+
+<!-- campaign-aware -->
+# Campaign rules are data
+- Every campaign has campaigns/<name>/brief.md (verbatim) and rules.yaml (structured). See
+  docs/CAMPAIGN_RULES.md. Never put campaign-specific logic or wording in code or tests; use the
+  fixture in docs/examples/.
+- No stage runs on a rules.yaml with status: draft. Only a human sets status: reviewed.
+- Captions are assembled and validated in code; the LLM supplies wording and a list of claims, each
+  backed by a verbatim quote from the transcript or rules.allowed_facts.
+- QA fails closed: a null safety rule (music, AI voice, source) means not allowed.

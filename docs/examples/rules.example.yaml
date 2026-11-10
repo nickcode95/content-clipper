@@ -1,0 +1,78 @@
+# Fictional example showing how a brief maps onto the schema. Also usable as a test fixture.
+schema_version: 1
+name: acme-launch-trailer
+status: reviewed
+brief_file: brief.md
+brief_sha256: ""
+valid_until: null
+platforms: [tiktok, instagram]
+rate_per_1k_views: null
+
+source:
+  policy: official_only
+  location_notes: "official content folder"
+  require_registry: true
+
+video:
+  min_length_s: 8
+  max_length_s: null
+  language: en
+  quality_notes: []
+
+audio:
+  music_allowed: false
+  ai_voice_allowed: false
+  original_audio_only: true
+
+caption:
+  required_mentions:
+    - {text: "@acmestudio", platforms: [tiktok, instagram]}
+  disclosure:
+    required: true
+    accepted_tags: ["#Ad"]
+    must_be_first_hashtag: true
+    own_line: true
+    after_caption_text: true
+  max_additional_hashtags: 2
+  hashtags_must_relate: true
+  max_length_chars: null
+  required_lines:
+    - {id: availability, where: caption, verbatim: true, options: ["Out now on all platforms"], expires: null}
+  forbidden_phrases: []
+  example_captions: []
+  style_notes: ["keep it genuine", "no made-up facts, stats or dates"]
+
+allowed_facts: ["Out now on all platforms"]
+
+on_screen_text:
+  policy: optional
+  must_match_screen: true
+  notes: []
+
+hook_style:
+  mode: descriptive
+  notes: ["no exaggerated hooks, rage bait"]
+
+prohibited:
+  - "exaggerated hooks, rage bait"
+  - "reposting another creator's video"
+
+posting:
+  max_posts_per_clip: 3
+  same_clip_on_multiple_accounts: null
+  same_clip_across_platforms: null
+  min_days_live: 14
+  dedicated_page_required: null
+  account_notes: []
+
+checklist:
+  - "Minimum 1% engagement rate"
+  - "Likes must be visible"
+  - "Posts stay live for 14 days"
+other_rules: []
+unknowns:
+  - "Does posting the same clip to TikTok and Instagram count as the same clip on multiple accounts?"
+evidence:
+  source.policy: "Use only footage from the content folder."
+  audio.music_allowed: "No added music."
+  caption.disclosure.accepted_tags: "#Ad as the first hashtag"

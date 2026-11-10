@@ -47,7 +47,7 @@ Trend brief: data/research/<campaign>.trend_brief.json
     }
 
 Campaign rules: campaigns/<name>/rules.yaml (see campaigns/_template).
-Renders: data/out/<video_id>/<clip_id>.mp4, plus .ass captions and .log (ffmpeg stderr).
+Renders: data/out/<campaign>/<video_id>/<clip_id>.mp4 plus sidecar files (see Campaign-aware stages below).
 Results log: data/results.csv (header already created).
 
 ## Stage notes
@@ -57,6 +57,45 @@ Results log: data/results.csv (header already created).
 - Reframe: OpenCV Haar cascade (cv2.data.haarcascades), detect every ~5th frame, smooth the
   crop centre, fall back to a centre crop when no face is found. MediaPipe is a later upgrade.
 - Render: ffmpeg re-encode (never stream copy) to the settings in config/render.yaml.
-- QA: check length, resolution, audio present, required mentions, music licence, against
-  campaigns/<name>/rules.yaml. QA failures block publishing.
+- QA: see Campaign-aware stages below. QA failures block publishing.
 - Publish: out of scope until the first full run works.
+
+<!-- campaign-aware -->
+## Campaign-aware stages (supersedes earlier notes on renders and QA)
+
+Principle: no campaign-specific logic in code. Everything campaign-specific comes from
+campaigns/<name>/brief.md (verbatim) and campaigns/<name>/rules.yaml (schema and enforcement table in
+docs/CAMPAIGN_RULES.md). Rules the schema cannot express go to other_rules and are reviewed by the
+LLM and a human.
+
+Flow: brief.md -> campaign add -> rules.yaml (draft) -> human review -> campaign approve
+-> select -> HUMAN clip approval -> caption -> render -> qa -> HUMAN final approval -> publish.
+
+Commands (Typer): `campaign add <name> --brief <file>`, `campaign show <name>`, `campaign approve <name>`,
+`select <campaign> <video_id>`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
+`qa <campaign> <video_id>`, `approve <campaign> <video_id> <clip_id>`, `checklist <campaign>`.
+
+Output layout: data/out/<campaign>/<video_id>/ with, per clip_id:
+`<clip_id>.mp4`, `.ass`, `.log`, `.render.json`, `<clip_id>.<platform>.caption.txt`, `.caption.json`, `.qa.json`.
+
+Source registry: data/sources/registry.csv, header `video_id,origin,campaign,downloaded_at,notes`.
+I add a row by hand when I download authorised footage.
+
+render.json:
+
+    {"clip_id": "c01", "campaign": "...", "source_video": "...", "music": null,
+     "ai_voice": false, "hook_text": null, "on_screen_lines": ["..."], "duration_s": 0.0}
+
+caption.json:
+
+    {"clip_id": "c01", "platform": "tiktok", "caption_text": "...", "hashtags": ["#..."],
+     "on_screen_text": null, "claims": [{"claim": "...", "source_quote": "..."}],
+     "validation": [{"id": "...", "status": "pass"}], "attempts": 1}
+
+qa.json:
+
+    {"clip_id": "c01", "campaign": "...", "checks": [{"id": "length", "status": "pass", "detail": "..."}],
+     "passed": true, "human_approved": null}
+
+Tests use docs/examples/ as the fixture campaign. No test calls a paid API; LLM calls are replaced by
+recorded fake responses, and one slow test is gated by RUN_SLOW=1.

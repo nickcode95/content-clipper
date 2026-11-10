@@ -18,3 +18,14 @@ Settings come from config/render.yaml. Render only clips with approved == true.
 - Music must come from the music-licensing skill. If no track is eligible, render without music.
 - Save ffmpeg stderr to a .log next to the output and fail loudly on a non-zero exit.
 - Face-tracked crop: OpenCV Haar cascade, smoothed, with a centre-crop fallback (see docs/ARCHITECTURE.md).
+
+<!-- campaign-aware -->
+## Campaign awareness
+- Output to data/out/<campaign>/<video_id>/<clip_id>.mp4 and write <clip_id>.render.json with
+  source video, campaign, music track (or null), on-screen lines drawn, hook text, ai voice false.
+- Add music only when rules.audio.music_allowed is true AND the music-licensing skill finds an
+  eligible track. Otherwise keep the original audio untouched.
+- Draw overlay text produced by the caption stage. Required on-screen lines (required_lines with
+  where on_screen) are drawn for at least config.hook.seconds. Honour hook_style.mode and
+  on_screen_text.policy. Never invent overlay text in the render stage.
+- Refuse to render when rules.status is draft.
