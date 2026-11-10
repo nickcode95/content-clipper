@@ -24,6 +24,7 @@ from content_clipper.media import (
     contract_video_path,
     decode_audio,
     duration_s,
+    probe,
 )
 from content_clipper.models import Shot, ShotAnalysis
 
@@ -44,16 +45,42 @@ class AnalyzeConfig:
 DEFAULT = AnalyzeConfig()
 
 
-def frame_signals(frames: Iterator[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
-    """Per-frame brightness and difference from the previous frame (first diff is 0), 0..1."""
-    brightness, diffs = [], []
+def frame_signals(frames: Iterator[np.ndarray]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per frame: brightness, difference from the previous frame (first is 0), and that
+    difference per column (shape frames x width). All 0..1."""
+    brightness, diffs, cols = [], [], []
     prev = None
     for f in frames:
         g = f.astype(np.float32) / 255.0
         brightness.append(float(g.mean()))
-        diffs.append(0.0 if prev is None else float(np.abs(g - prev).mean()))
+        d = np.zeros(g.shape[1], np.float32) if prev is None else np.abs(g - prev).mean(axis=0)
+        cols.append(d)
+        diffs.append(float(d.mean()))
         prev = g
-    return np.array(brightness), np.array(diffs)
+    width = cols[0].size if cols else 0
+    return np.array(brightness), np.array(diffs), np.array(cols).reshape(len(cols), width)
+
+
+def focus_x(col_motion: np.ndarray, window_frac: float, min_motion: float = 0.004,
+            min_lift: float = 1.2) -> float | None:
+    """Centre (0..1) of the window (window_frac of the width) holding the most motion.
+
+    None when the shot is nearly still, or when motion is spread so evenly that no window holds
+    clearly more than its share (min_lift); the crop then stays in the centre. A mild centre
+    prior breaks near-ties.
+    """
+    if col_motion.size == 0 or float(col_motion.mean()) < min_motion:
+        return None
+    e = col_motion.sum(axis=0).astype(np.float64)
+    n = e.size
+    w = min(n, max(1, round(window_frac * n)))
+    csum = np.r_[0.0, np.cumsum(e)]
+    sums = csum[w:] - csum[:-w]
+    centres = (np.arange(sums.size) + w / 2) / n
+    best = int(np.argmax(sums * (1 - 0.15 * np.abs(centres - 0.5) * 2)))
+    if sums[best] < min_lift * e.sum() * w / n:
+        return None
+    return round(float(centres[best]), 3)
 
 
 def detect_cuts(diffs: np.ndarray, fps: float, cfg: AnalyzeConfig = DEFAULT) -> list[int]:
@@ -98,7 +125,9 @@ def pick_keyframe(start: float, end: float, times: list[float]) -> int:
     return min(pool, key=lambda i: abs(times[i] - mid))
 
 
-def _decode(video: Path, tmp: Path, cfg: AnalyzeConfig) -> tuple[np.ndarray, np.ndarray, list[Path]]:
+def _decode(
+    video: Path, tmp: Path, cfg: AnalyzeConfig
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[Path]]:
     graph = (
         f"[0:v]fps={cfg.fps},split=2[a][b];"
         f"[a]scale={GREY_W}:{GREY_H},format=gray[g];"
@@ -121,18 +150,20 @@ def _decode(video: Path, tmp: Path, cfg: AnalyzeConfig) -> tuple[np.ndarray, np.
                     break
                 yield np.frombuffer(chunk, np.uint8).reshape(GREY_H, GREY_W)
 
-        brightness, diffs = frame_signals(frames())
+        brightness, diffs, cols = frame_signals(frames())
         if proc.wait() != 0:
             raise RuntimeError(f"ffmpeg failed on {video}: {(tmp / 'ffmpeg.log').read_text()}")
-    return brightness, diffs, sorted(tmp.glob("k_*.jpg"))
+    return brightness, diffs, cols, sorted(tmp.glob("k_*.jpg"))
 
 
 def analyze_video(video: Path, out_root: Path, cfg: AnalyzeConfig = DEFAULT) -> ShotAnalysis:
     out_dir = out_root / video.stem
     duration = duration_s(video)
+    v = next(s for s in probe(video)["streams"] if s["codec_type"] == "video")
+    window = min(1.0, (9 / 16) * int(v["height"]) / int(v["width"]))  # 9:16 crop, as a fraction
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
-        brightness, diffs, jpgs = _decode(video, tmp, cfg)
+        brightness, diffs, cols, jpgs = _decode(video, tmp, cfg)
         if len(diffs) == 0 or not jpgs:
             raise RuntimeError(f"no video frames decoded from {video}")
         cuts = detect_cuts(diffs, cfg.fps, cfg)
@@ -154,6 +185,7 @@ def analyze_video(video: Path, out_root: Path, cfg: AnalyzeConfig = DEFAULT) -> 
                 loudness_db=rms_db(pcm, SAMPLE_RATE, start, end),
                 motion=round(float(inner.mean()) if inner.size else 0.0, 4),
                 brightness=round(float(brightness[a:b].mean()) if b > a else 0.0, 4),
+                focus_x=focus_x(cols[a + 1:b], window),
             ))
     analysis = ShotAnalysis(video=contract_video_path(video), video_id=video.stem,
                             duration_s=round(duration, 3), analysis_fps=cfg.fps, shots=shots)

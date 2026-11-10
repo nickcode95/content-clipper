@@ -32,7 +32,10 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
 - [x] Hooks from fan research (pulled forward from S8): `research add` (pasted notes, kept and
   accumulated), trend brief with fan_references; up to 4 fan-voice hook options per clip, checked
   in code; `hooks` refreshes options, `pick-hook` chooses. Done 10 Nov on the MW4 DMZ clips.
-- [ ] S5 Action-following 9:16 crop as a second layout (motion-weighted, smoothed, centre fallback).
+- [x] S5 Action-following 9:16 crop as a second layout (motion-weighted, smoothed, centre fallback).
+  Done 11 Nov: analyze stores focus_x per shot (busiest 9:16 window, centre prior, None when still);
+  `render --layout crop` cuts one crop position per shot (no panning inside a shot), captions only,
+  files <clip>.crop.*; band renders untouched; hook variants skipped. 3 DMZ clips in 44 s.
 - [ ] S6 Fri 20 Nov 19:30. Caption stage and compliance QA, per the caption-generation and
   compliance-qa skills. Accept: all deterministic checks tested on the example campaign.
 - [ ] S7 Sat 21 Nov 10:00. First full run on a real campaign video, no music, end to end

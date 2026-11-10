@@ -28,10 +28,12 @@ Shot analysis: data/analysis/<video_id>/shots.json, plus shot_###.jpg keyframes 
     {
       "video": "data/sources/<file>", "video_id": "...", "duration_s": 0.0, "analysis_fps": 30.0,
       "shots": [{"id": 0, "start": 0.0, "end": 2.0, "keyframe": "shot_000.jpg",
-                 "loudness_db": -18.0, "motion": 0.02, "brightness": 0.3}]
+                 "loudness_db": -18.0, "motion": 0.02, "brightness": 0.3, "focus_x": 0.62}]
     }
 
 Shots are contiguous (each starts where the previous ended). Boundaries are accurate to 1/analysis_fps.
+focus_x is the horizontal centre (0..1) of the 9:16-wide window holding the most motion, or null
+(still or evenly spread: use the centre).
 
 Clips: data/clips/<video_id>.clips.json
 
@@ -81,8 +83,10 @@ Results log: data/results.csv (header already created).
   timestamps, and returns shot ranges. Code snaps them (see the select-clips skill).
 - Layouts (render): `band` puts the full-width 16:9 video on the 9:16 canvas over a blurred copy
   of itself (or a solid colour), with the hook in the band below the video and captions in the
-  band above. An action-following 9:16 crop comes later. Game footage rarely has usable faces,
-  so face tracking is not the default.
+  band above. `crop` (`render --layout crop`) fills the 9:16 frame with a crop that follows the
+  action: one position per shot from focus_x, centre fallback, captions only, no hook; files get a
+  `.crop` suffix (`c01.crop.mp4`) so band renders are never replaced. Game footage rarely has
+  usable faces, so face tracking is not used.
 - Render: ffmpeg re-encode (never stream copy) to the settings in config/render.yaml.
 - QA: see Campaign-aware stages below. QA failures block publishing.
 - Publish: out of scope until the first full run works.

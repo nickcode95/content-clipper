@@ -276,16 +276,23 @@ def render(
     campaign: str,
     video_id: str,
     clip: Annotated[list[str] | None, typer.Option(help="Only these clip ids.")] = None,
+    layout: Annotated[str | None, typer.Option(
+        help="band (video in the middle, hook band) or crop (full-screen 9:16, captions only). "
+             "Default: layout.mode in config/render.yaml.")] = None,
 ) -> None:
     """Render CAMPAIGN's approved clips of VIDEO_ID to data/out/<campaign>/<video_id>/."""
     import time
 
     cfg = load_render_config()
-    typer.echo(f"Rendering approved clips of {video_id} ({cfg.layout.mode} layout, "
-               f"{cfg.layout.background} background, hook {cfg.layout.hook_position}) ...")
+    chosen = layout or cfg.layout.mode
+    if chosen not in ("band", "crop"):
+        _fail(f"unknown layout {chosen!r}: use band or crop")
+    detail = ("action-following crop, captions only" if chosen == "crop" else
+              f"{cfg.layout.background} background, hook {cfg.layout.hook_position}")
+    typer.echo(f"Rendering approved clips of {video_id} ({chosen} layout, {detail}) ...")
     t0 = time.perf_counter()
     try:
-        done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None)
+        done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None, layout=chosen)
     except (store.CampaignError, rnd.RenderError, ValidationError) as e:
         _fail(str(e))
     for r in done:

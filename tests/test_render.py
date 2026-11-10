@@ -182,3 +182,71 @@ def test_render_refuses_unregistered_source(ws):
     set_approval(ws / "data/clips/v.clips.json", ["c01"], True)
     with pytest.raises(RenderError, match="not registered"):
         render_approved("acme-launch-trailer", "v", cfg=CFG)
+
+
+# ---------------------------------------------------------------- crop layout
+
+
+def shot(i, start, end, focus):
+    from content_clipper.models import Shot
+
+    return Shot(id=i, start=start, end=end, keyframe=f"shot_{i:03d}.jpg", loudness_db=-20,
+                motion=0.02, brightness=0.3, focus_x=focus)
+
+
+def test_crop_plan_follows_each_shot_and_clamps_to_the_frame():
+    from content_clipper.render.core import crop_plan, crop_x_expr
+
+    shots = [shot(0, 0, 2, 0.9), shot(1, 2, 5, None), shot(2, 5, 8, 0.0), shot(3, 8, 9, 0.9)]
+    plan = crop_plan(3840, 2160, shots, clip(start_s=1.0, end_s=7.0))
+    assert (plan.w, plan.h, plan.y) == (1216, 2160, 0)
+    # shot 0: right side, clamped so the crop stays inside the frame; shot 1: centre; shot 2: left
+    assert plan.xs == [(0.0, 2624), (1.0, 1312), (4.0, 0)]
+    assert crop_x_expr(plan) == "2624+(-1312)*gte(t,1.000)+(-1312)*gte(t,4.000)"
+
+
+def test_crop_plan_for_a_vertical_source_crops_the_height():
+    from content_clipper.render.core import crop_plan
+
+    plan = crop_plan(1080, 2400, [], clip())
+    assert (plan.w, plan.h) == (1080, 1920) and plan.xs == [(0.0, 0)] and plan.y == 240
+
+
+def test_crop_captions_sit_inside_the_safe_area():
+    from content_clipper.render.core import crop_geometry
+
+    g = crop_geometry(CFG)
+    subs = build_ass(clip_words(transcript(), clip()), None, g, CFG, 2.2)
+    assert all(e.style == "Caption" for e in subs.events)
+    assert all(g.safe.top <= top and bottom <= g.safe.bottom for top, bottom in text_boxes(subs))
+
+
+@needs_ffmpeg
+def test_crop_render_adds_files_without_touching_band_renders(ws):
+    from content_clipper.models import ShotAnalysis
+
+    adir = ws / "data/analysis/v"
+    adir.mkdir(parents=True)
+    a = ShotAnalysis(video="data/sources/v.mp4", video_id="v", duration_s=4.0, analysis_fps=30,
+                     shots=[shot(0, 0, 2, 0.8), shot(1, 2, 4, None)])
+    (adir / "shots.json").write_text(a.model_dump_json())
+    clips_path = ws / "data/clips/v.clips.json"
+    cf = ClipsFile.model_validate_json(clips_path.read_text())
+    cf.clips[1] = cf.clips[1].model_copy(update={"variant_of": "c01", "id": "c01-2"})
+    clips_path.write_text(cf.model_dump_json())
+    set_approval(clips_path, ["c01", "c01-2"], True)
+
+    band = render_approved("acme-launch-trailer", "v", cfg=CFG)
+    assert [r.path.name for r in band] == ["c01.mp4", "c01-2.mp4"]
+    before = band[0].path.stat().st_mtime_ns
+
+    crop = render_approved("acme-launch-trailer", "v", cfg=CFG, layout="crop")
+    assert [r.path.name for r in crop] == ["c01.crop.mp4"]  # hook variant skipped: no hook here
+    assert band[0].path.stat().st_mtime_ns == before
+    info = probe(crop[0].path)
+    v = next(s for s in info["streams"] if s["codec_type"] == "video")
+    assert (v["width"], v["height"]) == (1080, 1920)
+    meta = json.loads((ws / "data/out/acme-launch-trailer/v/c01.crop.render.json").read_text())
+    assert meta["layout"] == "crop" and meta["hook_text"] is None
+    assert [x for _, x in meta["crop"]["xs"]] == [822, 438]  # 404 px crop: focus 0.8, then centre
+    assert abs(crop[0].duration_s - 2.2) <= 0.1

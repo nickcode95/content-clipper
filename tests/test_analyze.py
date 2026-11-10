@@ -10,6 +10,7 @@ from content_clipper.analyze.core import (
     AnalyzeConfig,
     analyze_video,
     detect_cuts,
+    focus_x,
     frame_signals,
     pick_keyframe,
     rms_db,
@@ -51,9 +52,26 @@ def test_flash_frames_close_together_give_one_cut():
 def test_frame_signals():
     frames = [np.zeros((9, 16), np.uint8), np.zeros((9, 16), np.uint8),
               np.full((9, 16), 255, np.uint8)]
-    brightness, diffs = frame_signals(iter(frames))
+    brightness, diffs, cols = frame_signals(iter(frames))
     assert brightness.tolist() == [0.0, 0.0, 1.0]
     assert diffs.tolist() == [0.0, 0.0, 1.0]
+    assert cols.shape == (3, 16) and cols[2].tolist() == [1.0] * 16
+
+
+@pytest.mark.parametrize("lo, hi, side", [(120, 140, "right"), (10, 30, "left")])
+def test_crop_window_contains_the_action_and_stays_as_central_as_it_can(lo, hi, side):
+    cols = np.full((30, 160), 0.002, np.float32)
+    cols[:, lo:hi] = 0.08
+    f = focus_x(cols, 0.316)
+    half, col = 0.316 / 2, 1 / 160  # tolerance: one analysis column
+    assert f - half - col <= lo / 160 and hi / 160 <= f + half + col  # action inside the crop
+    assert (f > 0.6) if side == "right" else (f < 0.4)
+
+
+def test_focus_is_none_when_still_or_evenly_spread():
+    assert focus_x(np.zeros((30, 160), np.float32), 0.316) is None
+    assert focus_x(np.full((30, 160), 0.05, np.float32), 0.316) is None
+    assert focus_x(np.zeros((0, 160), np.float32), 0.316) is None
 
 
 def test_shot_bounds_and_keyframes():

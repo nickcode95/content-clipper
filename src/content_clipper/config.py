@@ -102,11 +102,12 @@ class HookStyleCfg(_M):
 
 
 class LayoutCfg(_M):
-    mode: Literal["band"] = "band"
+    mode: Literal["band", "crop"] = "band"
     background: Literal["blur", "color"] = "blur"
     background_color: str = "#111111"
     video_center_y: float = Field(default=0.45, gt=0, lt=1)
     hook_position: Literal["below", "above"] = "below"
+    crop_caption_y: float = Field(default=0.68, gt=0, lt=1)  # crop layout: caption centre
 
 
 class MusicCfg(_M):

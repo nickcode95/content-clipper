@@ -22,8 +22,10 @@ Settings come from config/render.yaml. Render only clips with approved == true.
   The hook goes in the band below the video (`hook_position: below`) and the word captions in the
   band above; swap with `hook_position: above`. `hook.seconds: 0` keeps the hook up for the whole
   clip. Text is wrapped and sized in code and every text box is checked against the safe area.
-- Game footage rarely has faces, so face tracking is not the default. An action-following 9:16
-  crop is planned as a second layout (S5).
+- `crop` layout (`render <campaign> <video_id> --layout crop`): full-screen 9:16 cut that follows
+  the action, one crop position per shot from shots.json focus_x (centre when null), captions at
+  layout.crop_caption_y, no hook. Writes <clip_id>.crop.* next to the band files and skips hook
+  variants (they would be identical). Game footage rarely has faces, so no face tracking.
 - Human gate: `content-clipper approve-clips <video_id> c01 c02` sets approved: true; `render
   <campaign> <video_id>` renders only approved clips and re-checks the campaign and the registry.
 - Code: src/content_clipper/render/core.py.

@@ -18,4 +18,7 @@ layout:
   background_color: "#111111"
   video_center_y: 0.45   # vertical centre of the video, as a fraction of the canvas height
   hook_position: below   # below | above the video; captions go in the other band
+  # crop: full-screen 9:16 cut that follows the action shot by shot; captions only, no hook.
+  # Render it with `render ... --layout crop` (files get a .crop suffix).
+  crop_caption_y: 0.68   # crop layout: vertical centre of the captions (fraction of height)
 music: {gain_db: -18, duck: true, fade_s: 1.0}

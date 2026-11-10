@@ -211,6 +211,9 @@ class Shot(_Strict):
     loudness_db: float  # RMS level of the shot's audio in dBFS (-90 = silence)
     motion: float = Field(ge=0)  # mean absolute frame-to-frame difference, 0..1
     brightness: float = Field(ge=0, le=1)  # mean luma, 0..1
+    # Horizontal centre (0..1) of the 9:16-wide window holding the most motion; None = still or
+    # evenly spread (use the centre). Drives the action-following crop layout.
+    focus_x: float | None = Field(default=None, ge=0, le=1)
 
 
 class ShotAnalysis(_Strict):

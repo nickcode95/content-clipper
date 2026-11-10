@@ -25,7 +25,14 @@ import pysubs2
 from content_clipper.campaign.store import require_reviewed
 from content_clipper.config import RenderConfig
 from content_clipper.media import duration_s, probe
-from content_clipper.models import CampaignRules, Clip, ClipsFile, Transcript
+from content_clipper.models import (
+    CampaignRules,
+    Clip,
+    ClipsFile,
+    Shot,
+    ShotAnalysis,
+    Transcript,
+)
 from content_clipper.sources import is_registered
 
 CHAR_W = 0.6  # average glyph width of DejaVu Sans Bold, as a fraction of the font size
@@ -87,6 +94,52 @@ def band_geometry(cfg: RenderConfig, src_w: int, src_h: int) -> BandGeometry:
     if hook.height < MIN_BAND or captions.height < MIN_BAND:
         raise RenderError(f"layout leaves less than {MIN_BAND} px for the hook or the captions")
     return BandGeometry((W - vw) // 2, vy, vw, vh, safe, hook, captions)
+
+
+def crop_geometry(cfg: RenderConfig) -> BandGeometry:
+    """Full-frame 9:16 layout: only the caption position matters (no hook band)."""
+    H = cfg.height
+    safe = Box(round(H * cfg.captions.safe_top_pct / 100),
+               round(H * (1 - cfg.captions.safe_bottom_pct / 100)))
+    cy = round(cfg.layout.crop_caption_y * H)
+    captions = Box(max(safe.top, cy - MIN_BAND), min(safe.bottom, cy + MIN_BAND))
+    return BandGeometry(0, 0, cfg.width, H, safe, Box(safe.top, safe.top), captions)
+
+
+@dataclass(frozen=True)
+class CropPlan:
+    w: int  # crop size in source pixels (9:16)
+    h: int
+    y: int
+    xs: list[tuple[float, int]]  # (clip-relative start time, crop x) per run of shots
+
+
+def crop_plan(src_w: int, src_h: int, shots: list[Shot], clip: Clip) -> CropPlan:
+    """One crop position per shot, centred on the shot's action (centre when unknown)."""
+    if src_w * 16 >= src_h * 9:  # wider than 9:16: crop the width
+        w, h = min(src_w, _even(src_h * 9 / 16)), src_h
+    else:  # narrower: crop the height
+        w, h = src_w, min(src_h, _even(src_w * 16 / 9))
+    xs: list[tuple[float, int]] = []
+    for s in shots:
+        if s.end <= clip.start_s or s.start >= clip.end_s:
+            continue
+        focus = 0.5 if s.focus_x is None else s.focus_x
+        x = max(0, min(src_w - w, _even(focus * src_w - w / 2)))
+        t = round(max(0.0, s.start - clip.start_s), 3)
+        if not xs or xs[-1][1] != x:
+            xs.append((t, x))
+    if not xs:
+        xs = [(0.0, (src_w - w) // 2 // 2 * 2)]
+    return CropPlan(w, h, (src_h - h) // 2 // 2 * 2, xs)
+
+
+def crop_x_expr(plan: CropPlan) -> str:
+    """ffmpeg expression for x(t): a step at each shot change (no panning inside a shot)."""
+    expr = str(plan.xs[0][1])
+    for (_, prev), (t, x) in zip(plan.xs, plan.xs[1:], strict=False):
+        expr += f"+({x - prev})*gte(t,{t:.3f})"
+    return expr
 
 
 # ---------------------------------------------------------------- text (pure)
@@ -230,6 +283,11 @@ def hook_for(clip: Clip, rules: CampaignRules) -> str | None:
     return clip.hook_line.strip() or None
 
 
+def crop_filter_graph(plan: CropPlan, cfg: RenderConfig) -> str:
+    return (f"[0:v]fps={cfg.fps},crop=w={plan.w}:h={plan.h}:x='{crop_x_expr(plan)}':y={plan.y},"
+            f"scale={cfg.width}:{cfg.height},setsar=1,ass=clip.ass,format={cfg.video.pix_fmt}[v]")
+
+
 def filter_graph(geom: BandGeometry, cfg: RenderConfig) -> str:
     W, H, fps = cfg.width, cfg.height, cfg.fps
     fg = (f"[fgsrc]scale={geom.video_w}:{geom.video_h}[fg];"
@@ -260,29 +318,39 @@ def render_clip(
     campaign: str,
     cfg: RenderConfig,
     out_dir: Path,
+    layout: str = "band",
+    shots: list[Shot] | None = None,
 ) -> Rendered:
     info = probe(source)
     vstream = next((s for s in info["streams"] if s["codec_type"] == "video"), None)
     if vstream is None or not any(s["codec_type"] == "audio" for s in info["streams"]):
         raise RenderError(f"{source} needs a video and an audio stream")
-    geom = band_geometry(cfg, int(vstream["width"]), int(vstream["height"]))
+    src_w, src_h = int(vstream["width"]), int(vstream["height"])
     dur = round(clip.end_s - clip.start_s, 3)
-    hook = hook_for(clip, rules)
+    plan = None
+    if layout == "crop":
+        geom, hook = crop_geometry(cfg), None  # full-screen: captions only, no hook
+        plan = crop_plan(src_w, src_h, shots or [], clip)
+        graph = crop_filter_graph(plan, cfg)
+    else:
+        geom, hook = band_geometry(cfg, src_w, src_h), hook_for(clip, rules)
+        graph = filter_graph(geom, cfg)
     subs = build_ass(clip_words(transcript, clip), hook, geom, cfg, dur)
     for top, bottom in text_boxes(subs):
         if top < geom.safe.top or bottom > geom.safe.bottom:
             raise RenderError(f"text box {top}-{bottom} px leaves the safe area")
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    mp4, log = out_dir / f"{clip.id}.mp4", out_dir / f"{clip.id}.log"
+    stem = clip.id if layout == "band" else f"{clip.id}.{layout}"  # band files keep plain names
+    mp4, log = out_dir / f"{stem}.mp4", out_dir / f"{stem}.log"
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
         subs.save(str(tmp / "clip.ass"))
-        shutil.copy(tmp / "clip.ass", out_dir / f"{clip.id}.ass")
+        shutil.copy(tmp / "clip.ass", out_dir / f"{stem}.ass")
         cmd = [
             "ffmpeg", "-nostdin", "-hide_banner", "-y",
             "-ss", f"{clip.start_s:.3f}", "-t", f"{dur:.3f}", "-i", str(source.resolve()),
-            "-filter_complex", filter_graph(geom, cfg), "-map", "[v]", "-map", "0:a:0",
+            "-filter_complex", graph, "-map", "[v]", "-map", "0:a:0",
             "-af", f"loudnorm={cfg.audio.loudnorm},aresample=48000",
             "-c:v", cfg.video.codec, "-preset", cfg.video.preset, "-crf", str(cfg.video.crf),
             "-pix_fmt", cfg.video.pix_fmt, "-r", str(cfg.fps),
@@ -303,10 +371,11 @@ def render_clip(
     meta = {
         "clip_id": clip.id, "campaign": campaign, "source_video": source.as_posix(),
         "start_s": clip.start_s, "end_s": clip.end_s, "duration_s": round(got, 3),
-        "layout": cfg.layout.mode, "background": cfg.layout.background,
+        "layout": layout, "background": cfg.layout.background if layout == "band" else None,
+        "crop": None if plan is None else {"w": plan.w, "h": plan.h, "xs": plan.xs},
         "music": None, "ai_voice": False, "hook_text": hook, "on_screen_lines": [],
     }
-    (out_dir / f"{clip.id}.render.json").write_text(json.dumps(meta, indent=2) + "\n")
+    (out_dir / f"{stem}.render.json").write_text(json.dumps(meta, indent=2) + "\n")
     return Rendered(mp4, round(got, 3), meta)
 
 
@@ -335,9 +404,11 @@ def render_approved(
     *,
     cfg: RenderConfig,
     only: list[str] | None = None,
+    layout: str | None = None,
     campaigns_root: Path = Path("campaigns"),
     data: Path = Path("data"),
 ) -> list[Rendered]:
+    layout = layout or cfg.layout.mode
     c = require_reviewed(campaign, campaigns_root)
     registry = data / "sources" / "registry.csv"
     if c.rules.source.require_registry and not is_registered(video_id, campaign, registry):
@@ -349,6 +420,8 @@ def render_approved(
     if clips.campaign != campaign:
         raise RenderError(f"{clips_path} was selected for {clips.campaign!r}, not {campaign!r}")
     todo = [x for x in clips.clips if x.approved is True and (not only or x.id in only)]
+    if layout == "crop":  # no hook in this layout, so hook variants would be identical videos
+        todo = [x for x in todo if x.variant_of is None]
     if not todo:
         raise RenderError(
             f"no approved clips to render; run `content-clipper approve-clips {video_id!r} c01 ...`")
@@ -357,6 +430,13 @@ def render_approved(
     source = Path(transcript.video)
     if not source.exists():
         raise RenderError(f"source video {source} not found")
+    shots = None
+    if layout == "crop":
+        a_path = data / "analysis" / video_id / "shots.json"
+        if not a_path.exists():
+            raise RenderError(f"{a_path} not found; run `content-clipper analyze <video>` first")
+        shots = ShotAnalysis.model_validate_json(a_path.read_text(encoding="utf-8")).shots
     out_dir = data / "out" / campaign / video_id
     return [render_clip(x, source=source, transcript=transcript, rules=c.rules,
-                        campaign=campaign, cfg=cfg, out_dir=out_dir) for x in todo]
+                        campaign=campaign, cfg=cfg, out_dir=out_dir, layout=layout, shots=shots)
+            for x in todo]
