@@ -30,6 +30,7 @@ system ffmpeg (PyAV 19 workaround from Session 1).
 - Small, tested steps. Run `uv run ruff check .` and `uv run pytest` before finishing.
 - Tests must not download models or call paid APIs. Gate slow or paid tests behind RUN_SLOW=1.
 - Never commit media, data/ or .env. Never push.
+- Do not commit at all: I commit manually. Leave changes uncommitted and list what changed.
 - Campaign briefs are non-negotiable: apply them exactly as written and never question them.
   Ask me only about music licences, or when a brief term cannot be represented in rules.yaml.
 - Finish with the session-wrap skill and report: what was built, how to run it, test results,

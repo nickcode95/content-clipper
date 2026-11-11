@@ -17,6 +17,8 @@
   point [project.scripts] at it.
 - Skills in .claude/skills/ describe each stage. Follow them. Use /session-wrap to finish a session.
 - Never read .env. Never commit media, data/ or secrets. Never push.
+- Never run `git commit` (or `git add`): Nick reviews and commits manually. Leave changes in the
+  working tree and say what changed so he can commit it.
 
 <!-- campaign-aware -->
 # Campaign rules are data
