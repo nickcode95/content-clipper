@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pysubs2
+from PIL import Image
 
 from content_clipper.campaign.store import require_reviewed
 from content_clipper.config import RenderConfig
@@ -33,6 +34,7 @@ from content_clipper.models import (
     ShotAnalysis,
     Transcript,
 )
+from content_clipper.render import richtext as rt
 from content_clipper.render import tweet
 from content_clipper.sources import is_registered
 
@@ -284,6 +286,18 @@ def hook_for(clip: Clip, rules: CampaignRules) -> str | None:
     return clip.hook_line.strip() or None
 
 
+def hook_image(text: str, cfg: RenderConfig, geom: BandGeometry) -> Image.Image:
+    """Plain hook text with colour emoji, drawn like the ASS hook (white, black outline)."""
+    bold = rt.font_file(f"{cfg.captions.font}:bold" if cfg.captions.bold else cfg.captions.font)
+    size = cfg.hook.size
+    while True:
+        img = rt.text_block(text, rt.RichFont(bold, size), max_width=cfg.width - 2 * SIDE_MARGIN,
+                            fill=(255, 255, 255, 255), stroke_width=5, stroke_fill=(0, 0, 0, 255))
+        if img.height <= geom.hook.height * 0.9 or size <= 36:
+            return img
+        size -= 4
+
+
 def _finish(cfg: RenderConfig, card_xy: tuple[int, int] | None) -> str:
     """[base] -> optional card overlay (input 1) -> captions -> [v]."""
     over = f"[base][1:v]overlay=x={card_xy[0]}:y={card_xy[1]}," if card_xy else "[base]"
@@ -363,6 +377,9 @@ def render_clip(
             raise RenderError(f"tweet card {top}-{top + ch} px leaves the safe area")
         tweet_meta = {"persona": persona.base, "display_name": persona.display_name,
                       "handle": handle, "text": hook}
+    elif hook and layout != "crop" and rt.has_emoji(hook):
+        card = hook_image(hook, cfg, geom)  # libass cannot draw colour emoji
+        card_xy = ((cfg.width - card.width) // 2, geom.hook.center - card.height // 2)
     ass_hook = None if layout == "crop" or card is not None else hook
     if layout == "crop":
         plan = crop_plan(src_w, src_h, shots or [], clip)
@@ -377,7 +394,7 @@ def render_clip(
     out_dir.mkdir(parents=True, exist_ok=True)
     # Default choices keep plain names (c01.mp4); others get suffixes (c01.crop.tweet.mp4).
     stem = ".".join([clip.id] + ([layout] if layout != "band" else [])
-                    + (["tweet"] if card is not None else []))
+                    + (["tweet"] if tweet_meta is not None else []))
     mp4, log = out_dir / f"{stem}.mp4", out_dir / f"{stem}.log"
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -417,7 +434,7 @@ def render_clip(
         "crop": None if plan is None else {"w": plan.w, "h": plan.h, "xs": plan.xs},
         "music": None, "ai_voice": False,
         "hook_text": hook if (card is not None or layout != "crop") else None,
-        "hook_style": "tweet" if card is not None else "text", "tweet": tweet_meta,
+        "hook_style": "tweet" if tweet_meta is not None else "text", "tweet": tweet_meta,
         "on_screen_lines": [],
     }
     (out_dir / f"{stem}.render.json").write_text(json.dumps(meta, indent=2) + "\n")

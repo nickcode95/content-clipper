@@ -32,6 +32,9 @@ Settings come from config/render.yaml. Render only clips with approved == true.
   each render picks a persona not used recently (data/personas_used.json) and adds 5 random
   digits to the handle. No platform logo, verified badge or like/view counts. Files get a
   `.tweet` suffix; render.json records persona and handle. Code: render/tweet.py.
+- Emoji: libass cannot draw colour emoji, so on-screen text with emoji is drawn with Pillow
+  (render/richtext.py, Noto Color Emoji): tweet cards always, plain hooks when they contain emoji
+  (same white text with black outline, overlaid in the hook band). Emoji-free hooks still use ASS.
 - Human gate: `content-clipper approve-clips <video_id> c01 c02` sets approved: true; `render
   <campaign> <video_id>` renders only approved clips and re-checks the campaign and the registry.
 - Code: src/content_clipper/render/core.py.

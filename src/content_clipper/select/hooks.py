@@ -32,7 +32,9 @@ HOOK_ANGLES = (
     "\"did i just see <old-school gun>?\" or \"is <new zone> the new <old zone>?\"). Whatever a "
     "hook names or asks about must be clearly visible in the keyframes or said in the narration: "
     "never guess a gun, place or character name. Speculation is a question or reaction, never a "
-    "stated fact. Use only the angles the campaign rules allow."
+    "stated fact. Use only the angles the campaign rules allow. Emoji are welcome where they add "
+    "to the reaction, following the trend brief's emoji_patterns when it has them (usually 0-2, "
+    "at the end of the line)."
 )
 
 HOOK_GUIDE = {
@@ -109,8 +111,8 @@ def valid_options(options: list[str], *, c: Campaign, narration: str, research_n
 def trend_section(brief: TrendBrief | None) -> str:
     if brief is None:
         return ""
-    data = brief.model_dump(include={"keywords", "fan_references", "patterns", "hook_formulas",
-                                     "avoid"})
+    data = brief.model_dump(include={"keywords", "fan_references", "emoji_patterns", "patterns",
+                                     "hook_formulas", "avoid"})
     return (
         "Audience research (trend brief). Use fan_references and patterns to choose which visible "
         "moment a hook reacts to and which fan emotion it plays on, and phrase it the way this "

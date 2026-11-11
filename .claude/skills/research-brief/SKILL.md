@@ -24,3 +24,10 @@ trend brief from all of them. The brief adds `fan_references`: concrete things f
 (returning or new guns, old zones, characters, modes), why they care, and the emotion each
 triggers (anticipation, speculation, excitement, intrigue, nostalgia, frustration). Angles the
 campaign rules ban go in `avoid`. Code: src/content_clipper/research/manual.py.
+
+## Screenshots of top-performing posts
+`research add <campaign> --image a.png --image b.webp` (with or without --notes): screenshots are
+copied to data/research/<campaign>/screenshots/, downscaled (long edge 1568 px), and read by the
+LLM in one call: format, on-screen text and caption exactly as shown (with emoji), emoji used,
+visible stats as shown, why it works. The readout is added to the notes (so the 5-word copy
+check also covers their wording) and the trend brief gains `emoji_patterns`.

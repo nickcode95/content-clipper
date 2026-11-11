@@ -328,18 +328,26 @@ def _read_input(path: Path) -> bytes:
 @research_app.command("add")
 def research_add(
     campaign: str,
-    notes: Annotated[Path, typer.Option("--notes", help="Pasted research notes ('-' = stdin).")],
+    notes: Annotated[Path | None, typer.Option(
+        "--notes", help="Pasted research notes ('-' = stdin).")] = None,
+    image: Annotated[list[Path] | None, typer.Option(
+        "--image", help="Screenshot of a top-performing post (repeat for several).")] = None,
     replace: Annotated[bool, typer.Option(help="Replace earlier notes instead of adding.")] = False,
 ) -> None:
-    """Add pasted audience research; rebuild data/research/CAMPAIGN.trend_brief.json from all notes."""
+    """Add research (notes and/or screenshots of top posts); rebuild the campaign's trend brief."""
+    if notes is None and not image:
+        _fail("give --notes and/or --image")
     model = load_models_config().selection
     try:
-        tb = research.add_notes(campaign, _read_input(notes), model=model, replace=replace)
-    except (store.CampaignError, LLMError, UnicodeDecodeError) as e:
+        tb = research.add_research(campaign, model=model, replace=replace,
+                                   notes=_read_input(notes) if notes else None,
+                                   images=image or [])
+    except (store.CampaignError, LLMError, UnicodeDecodeError, OSError) as e:
         _fail(str(e))
     typer.echo(f"Wrote {research.trend_path(campaign)} (notes kept in {tb.sources[0]})")
     _bullets("Fan references", [f"{r.name} [{r.emotion}]: {r.context}" for r in tb.fan_references])
     _bullets("Angles hooks can lean into", [f"{x.pattern} ({x.why_it_works})" for x in tb.patterns])
+    _bullets("Emoji patterns", tb.emoji_patterns)
     _bullets("Hook formulas", tb.hook_formulas)
     _bullets("Keep out of hooks", tb.avoid)
 

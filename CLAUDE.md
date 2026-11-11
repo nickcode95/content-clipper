@@ -40,3 +40,5 @@
   trend brief lists fan_references (guns, zones, characters, with the emotion each triggers).
 - A hook may only name or react to what is visible in the clip or said in it, and only use
   angles the campaign brief allows (the brief wins, e.g. no rage bait where it bans it).
+- Hooks and tweet cards may use emoji (usually 0-2), following the trend brief's emoji_patterns.
+  Screenshots of top posts go in with `research add <campaign> --image <file>`.

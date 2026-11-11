@@ -302,6 +302,7 @@ class TrendBriefBody(_Strict):
 
     keywords: list[str]
     fan_references: list[FanReference] = []
+    emoji_patterns: list[str] = []  # how top posts use emoji: which, where in the line, how many
     patterns: list[TrendPattern]
     hook_formulas: list[str]  # reusable templates in new wording
     avoid: list[str]  # angles hooks must not use (they would break the campaign rules)

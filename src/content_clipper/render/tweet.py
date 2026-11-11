@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import json
 import random
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageOps
+
+from content_clipper.render import richtext as rt
 
 PERSONAS_DIR = Path("assets/personas")
 IMAGE_EXT = {".webp", ".png", ".jpg", ".jpeg", ".gif"}
@@ -36,14 +37,6 @@ class Persona:
     base: str  # handle without digits
     display_name: str
     image: Path
-
-
-def _font_file(pattern: str) -> str:
-    out = subprocess.run(["fc-match", "-f", "%{file}", pattern], capture_output=True, text=True,
-                         check=False).stdout.strip()
-    if not out:
-        raise TweetError(f"no font found for {pattern!r}")
-    return out
 
 
 def load_personas(folder: Path = PERSONAS_DIR) -> list[Persona]:
@@ -71,17 +64,6 @@ def pick_persona(personas: list[Persona], history: Path, *, recent: int = 3,
     return persona, handle
 
 
-def _wrap(text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
-    lines: list[str] = []
-    for word in text.split():
-        trial = f"{lines[-1]} {word}" if lines else word
-        if lines and font.getlength(trial) <= width:
-            lines[-1] = trial
-        else:
-            lines.append(word)
-    return lines
-
-
 def _avatar(path: Path, size: int) -> Image.Image:
     img = ImageOps.exif_transpose(Image.open(path))
     img.seek(0)  # first frame of animated images
@@ -96,11 +78,11 @@ def make_card(text: str, persona: Persona, handle: str, *, width: int, max_heigh
               theme: str = "light", text_size: int = 46) -> Image.Image:
     """The card as an RGBA image `width` px wide and at most `max_height` px tall."""
     colours = THEMES[theme]
-    bold, regular = _font_file("DejaVu Sans:bold"), _font_file("DejaVu Sans")
+    bold, regular = rt.font_file("DejaVu Sans:bold"), rt.font_file("DejaVu Sans")
     pad, avatar, gap = 34, 96, 22
     while True:
-        body = ImageFont.truetype(regular, text_size)
-        lines = _wrap(text, body, width - 2 * pad)
+        body = rt.RichFont(regular, text_size)
+        lines = rt.wrap(text, body, width - 2 * pad)
         line_h = round(text_size * 1.3)
         height = pad + avatar + gap + len(lines) * line_h + pad - (line_h - text_size) // 2
         if height <= max_height or text_size <= 30:
@@ -117,14 +99,13 @@ def make_card(text: str, persona: Persona, handle: str, *, width: int, max_heigh
     card = card.resize((width, height), Image.Resampling.LANCZOS)
     card.alpha_composite(_avatar(persona.image, avatar), (pad, pad))
 
-    d = ImageDraw.Draw(card)
-    name_font = ImageFont.truetype(bold, 36)
-    handle_font = ImageFont.truetype(regular, 32)
     x = pad + avatar + 22
-    d.text((x, pad + 6), persona.display_name, font=name_font, fill=colours["text"])
-    d.text((x, pad + 52), f"@{handle}", font=handle_font, fill=colours["muted"])
+    rt.draw_line(card, (x, pad + 6), persona.display_name, rt.RichFont(bold, 36),
+                 fill=colours["text"])
+    rt.draw_line(card, (x, pad + 52), f"@{handle}", rt.RichFont(regular, 32),
+                 fill=colours["muted"])
     y = pad + avatar + gap
     for line in lines:
-        d.text((pad, y), line, font=body, fill=colours["text"])
+        rt.draw_line(card, (pad, y), line, body, fill=colours["text"])
         y += line_h
     return card
