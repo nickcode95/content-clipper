@@ -154,3 +154,30 @@ def test_regenerate_hooks_keeps_cuts_and_approval(ws, monkeypatch):
         choose_hooks(path, "c01", ["rated 84 by critics"])
     with pytest.raises(HookError, match="no clip"):
         choose_hooks(path, "c01-2", ["1"])
+
+
+def test_named_variant_is_added_alongside_and_survives_pick_hook(ws, monkeypatch):
+    from content_clipper.select.hooks import add_hook_variant
+
+    path = _clips_ws(ws)
+    cf = ClipsFile.model_validate_json(path.read_text())
+    cf.clips[0].hook_options = ["The squad moves in", "North Korea owns it now"]
+    path.write_text(cf.model_dump_json())
+
+    v = add_hook_variant(path, "c01", "the squad moves in 🔥", "fire-emoji")
+    assert (v.id, v.variant_of, v.hook_line, v.approved) == (
+        "c01-fire-emoji", "c01", "the squad moves in 🔥", True)
+    choose_hooks(path, "c01", ["1", "2"])  # numbered variants come and go...
+    ids = [c.id for c in ClipsFile.model_validate_json(path.read_text()).clips]
+    assert ids == ["c01", "c01-2", "c01-fire-emoji"]
+    choose_hooks(path, "c01", ["1"])
+    ids = [c.id for c in ClipsFile.model_validate_json(path.read_text()).clips]
+    assert ids == ["c01", "c01-fire-emoji"]  # ...the named one stays
+
+    add_hook_variant(path, "c01", "the squad moves in 🔥🔥", "fire-emoji")  # same name: replace
+    clips = ClipsFile.model_validate_json(path.read_text()).clips
+    assert [c.hook_line for c in clips if c.id == "c01-fire-emoji"] == ["the squad moves in 🔥🔥"]
+    with pytest.raises(HookError, match="variant name"):
+        add_hook_variant(path, "c01", "x", "Bad Name")
+    with pytest.raises(HookError, match="'84'"):
+        add_hook_variant(path, "c01", "rated 84 🔥", "score")

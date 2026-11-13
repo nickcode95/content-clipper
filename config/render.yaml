@@ -24,3 +24,6 @@ layout:
   # Render it with `render ... --layout crop` (files get a .crop suffix).
   crop_caption_y: 0.68   # crop layout: vertical centre of the captions (fraction of height)
 music: {gain_db: -18, duck: true, fade_s: 1.0}
+# Outro (set-outro): video hard-cuts to the outro; the clip's sound carries on for clip_tail_s
+# under it, fading out (no dropout at the join). End the clip where the action's sound ends.
+outro: {clip_tail_s: 0.05}

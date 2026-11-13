@@ -39,6 +39,12 @@ Fixed rhythm: Mon, Wed, Fri 19:30 and Sat 10:00.
 - [x] Tweet-style hook cards (11 Nov): personas from assets/personas/ (image + handle base), new
   @handle digits per render, rotation; card in the band under the video or above the bottom of
   the crop layout; Pillow added for text, rounded corners and round avatars.
+- [x] Outro (13 Nov): `set-outro <video_id> START END` saves a span of the source (its intro
+  title card) that render appends to every clip, band look, no text, audio faded out before the
+  first word spoken inside it; L-cut join: the clip's sound carries on 0.05 s under the
+  outro (outro.clip_tail_s), frame-exact. DMZ video: 0-2.033 s (shots 0-1), opens with 16 ms
+  of digital silence, bass hit 0.27 s in, audio silent from 1.21 s. c02 ends at 47.167 s:
+  the machine guns have died out and Ghost's "Our" starts at 47.235 s (Whisper: 46.84).
 - [ ] S6 Fri 20 Nov 19:30. Caption stage and compliance QA, per the caption-generation and
   compliance-qa skills. Accept: all deterministic checks tested on the example campaign.
 - [ ] S7 Sat 21 Nov 10:00. First full run on a real campaign video, no music, end to end

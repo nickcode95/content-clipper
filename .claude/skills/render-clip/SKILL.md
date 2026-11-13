@@ -35,6 +35,21 @@ Settings come from config/render.yaml. Render only clips with approved == true.
 - Emoji: libass cannot draw colour emoji, so on-screen text with emoji is drawn with Pillow
   (render/richtext.py, Noto Color Emoji): tweet cards always, plain hooks when they contain emoji
   (same white text with black outline, overlaid in the hook band). Emoji-free hooks still use ASS.
+- Outro (`set-outro <video_id> START END`, saved to data/outro/<video_id>.json): a span of the
+  same source, usually its intro title card, played after every clip of that video. Always in
+  the band look (never cropped), no text on it. Its audio fades to silence before the first
+  word Whisper hears inside the span, so no sentence starts and gets cut off. Picture hard-cuts
+  to the outro; the clip's sound carries on under it for outro.clip_tail_s (0.05 s), fading
+  out (an L-cut), so there is no dropout (intros often open with a few ms of silence). The
+  tail stops 0.05 s before the next word Whisper hears after the cut. Both parts are cut to
+  whole frames, so the outro sound starts on its first frame and its beat never drifts.
+  Placing the cut: end the clip where the action's sound has finished, so the outro's bass
+  hit lands on the clip's beat. Never fade the clip's last hits (it drains their bass). Whisper
+  word starts can be ~0.4 s early, so check a voice onset on a spectrogram
+  (`showspectrumpic`): speech shows stacked horizontal harmonics, gunfire vertical streaks.
+  Decode from 0 (no -ss) for timings to the millisecond. render.json
+  records it under `outro`; `render --no-outro` skips it. `set-outro <video_id>` alone lists
+  the first shots to choose from.
 - Human gate: `content-clipper approve-clips <video_id> c01 c02` sets approved: true; `render
   <campaign> <video_id>` renders only approved clips and re-checks the campaign and the registry.
 - Code: src/content_clipper/render/core.py.

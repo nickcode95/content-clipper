@@ -70,6 +70,8 @@ Clips carry hook_options (validated suggestions) and hook_line (the chosen one).
 video for posting limits.
 
 Campaign rules: campaigns/<name>/rules.yaml (see campaigns/_template).
+Outro: data/outro/<video_id>.json `{"video_id": "...", "start_s": 0.0, "end_s": 2.0}`, a span
+of the source played after every rendered clip of it (set by me with `set-outro`).
 Renders: data/out/<campaign>/<video_id>/<clip_id>.mp4 plus sidecar files (see Campaign-aware stages below).
 Results log: data/results.csv (header already created).
 
@@ -106,7 +108,7 @@ Flow: brief.md -> campaign add -> rules.yaml (draft) -> human review -> campaign
 
 Commands (Typer): `campaign add <name> --brief <file>`, `campaign show <name>`, `campaign approve <name>`,
 `research add <campaign> --notes <file>`, `transcribe <video>`, `analyze <video>`, `select <campaign> <video_id>`,
-`approve-clips <video_id> <clip_id>...`, `hooks <campaign> <video_id>`, `pick-hook <video_id> <clip_id> <n>`, `caption <campaign> <video_id>`, `render <campaign> <video_id>`,
+`approve-clips <video_id> <clip_id>...`, `hooks <campaign> <video_id>`, `pick-hook <video_id> <clip_id> <n>`, `caption <campaign> <video_id>`, `set-outro <video_id> <start> <end>`, `render <campaign> <video_id>`,
 `qa <campaign> <video_id>`, `approve <campaign> <video_id> <clip_id>`, `checklist <campaign>`.
 
 Output layout: data/out/<campaign>/<video_id>/ with, per clip_id:
@@ -118,7 +120,10 @@ I add a row by hand when I download authorised footage.
 render.json:
 
     {"clip_id": "c01", "campaign": "...", "source_video": "...", "music": null,
-     "ai_voice": false, "hook_text": null, "on_screen_lines": ["..."], "duration_s": 0.0}
+     "ai_voice": false, "hook_text": null, "on_screen_lines": ["..."], "duration_s": 0.0,
+     "outro": null}
+
+`outro` is null or {"start_s", "end_s", "duration_s", "audio_until_s", "clip_tail_s"}; duration_s includes it.
 
 caption.json:
 

@@ -6,7 +6,8 @@ word-highlight captions in the band above (configurable). All text stays inside 
 (top 10% and bottom 20% are covered by platform UI).
 
 Always re-encodes (frame-accurate cuts), keeps only the source audio (loudness-normalised), and
-verifies the output duration with ffprobe.
+verifies the output duration with ffprobe. An optional outro (a span of the same source, e.g.
+its title card, saved with `set-outro`) is appended after the clip.
 """
 
 from __future__ import annotations
@@ -30,9 +31,11 @@ from content_clipper.models import (
     CampaignRules,
     Clip,
     ClipsFile,
+    Outro,
     Shot,
     ShotAnalysis,
     Transcript,
+    Word,
 )
 from content_clipper.render import richtext as rt
 from content_clipper.render import tweet
@@ -298,31 +301,121 @@ def hook_image(text: str, cfg: RenderConfig, geom: BandGeometry) -> Image.Image:
         size -= 4
 
 
-def _finish(cfg: RenderConfig, card_xy: tuple[int, int] | None) -> str:
-    """[base] -> optional card overlay (input 1) -> captions -> [v]."""
+def _finish(cfg: RenderConfig, card_xy: tuple[int, int] | None, out: str = "v") -> str:
+    """[base] -> optional card overlay (input 1) -> captions -> [out]."""
     over = f"[base][1:v]overlay=x={card_xy[0]}:y={card_xy[1]}," if card_xy else "[base]"
-    return f"{over}ass=clip.ass,format={cfg.video.pix_fmt}[v]"
+    return f"{over}ass=clip.ass,format={cfg.video.pix_fmt}[{out}]"
 
 
 def crop_filter_graph(plan: CropPlan, cfg: RenderConfig,
-                      card_xy: tuple[int, int] | None = None) -> str:
+                      card_xy: tuple[int, int] | None = None, out: str = "v") -> str:
     return (f"[0:v]fps={cfg.fps},crop=w={plan.w}:h={plan.h}:x='{crop_x_expr(plan)}':y={plan.y},"
-            f"scale={cfg.width}:{cfg.height},setsar=1[base];" + _finish(cfg, card_xy))
+            f"scale={cfg.width}:{cfg.height},setsar=1[base];" + _finish(cfg, card_xy, out))
+
+
+def _band(inp: int, geom: BandGeometry, cfg: RenderConfig, p: str = "") -> str:
+    """Input `inp` full-width in the middle of the canvas over its blurred self -> [<p>base]."""
+    W, H, fps = cfg.width, cfg.height, cfg.fps
+    fg = (f"[{p}fgsrc]scale={geom.video_w}:{geom.video_h}[{p}fg];"
+          f"[{p}bg][{p}fg]overlay=x={geom.video_x}:y={geom.video_y}:shortest=1[{p}base]")
+    if cfg.layout.background == "blur":
+        return (f"[{inp}:v]fps={fps},split=2[{p}bgsrc][{p}fgsrc];"
+                f"[{p}bgsrc]scale={W // 4}:{H // 4}:force_original_aspect_ratio=increase,"
+                f"crop={W // 4}:{H // 4},boxblur=8:2,scale={W}:{H},"
+                f"eq=brightness=-0.15:saturation=1.2[{p}bg];" + fg)
+    colour = cfg.layout.background_color.lstrip("#")
+    return f"[{inp}:v]fps={fps}[{p}fgsrc];color=c=0x{colour}:s={W}x{H}:r={fps}[{p}bg];" + fg
 
 
 def filter_graph(geom: BandGeometry, cfg: RenderConfig,
-                 card_xy: tuple[int, int] | None = None) -> str:
-    W, H, fps = cfg.width, cfg.height, cfg.fps
-    fg = (f"[fgsrc]scale={geom.video_w}:{geom.video_h}[fg];"
-          f"[bg][fg]overlay=x={geom.video_x}:y={geom.video_y}:shortest=1[base];"
-          + _finish(cfg, card_xy))
-    if cfg.layout.background == "blur":
-        return (f"[0:v]fps={fps},split=2[bgsrc][fgsrc];"
-                f"[bgsrc]scale={W // 4}:{H // 4}:force_original_aspect_ratio=increase,"
-                f"crop={W // 4}:{H // 4},boxblur=8:2,scale={W}:{H},"
-                f"eq=brightness=-0.15:saturation=1.2[bg];" + fg)
-    colour = cfg.layout.background_color.lstrip("#")
-    return (f"[0:v]fps={fps}[fgsrc];color=c=0x{colour}:s={W}x{H}:r={fps}[bg];" + fg)
+                 card_xy: tuple[int, int] | None = None, out: str = "v") -> str:
+    return _band(0, geom, cfg) + ";" + _finish(cfg, card_xy, out)
+
+
+# ---------------------------------------------------------------- outro
+
+OUTRO_FADE_S = 0.3  # outro audio fades out over this long ...
+SPEECH_MARGIN_S = 0.15  # ... ending this long before the first word spoken inside the outro
+MIN_FADE_S = 0.01  # outro audio shorter than this before speech is muted outright
+TAIL_MARGIN_S = 0.05  # the clip's sound tail under the outro ends this long before the next word
+
+
+def outro_path(video_id: str, data: Path = Path("data")) -> Path:
+    return data / "outro" / f"{video_id}.json"
+
+
+def load_outro(video_id: str, data: Path = Path("data")) -> Outro | None:
+    p = outro_path(video_id, data)
+    return Outro.model_validate_json(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def save_outro(outro: Outro, transcript: Transcript, data: Path = Path("data")) -> Path:
+    """Human action: remember which span of the source video to play after every clip."""
+    if outro.video_id != transcript.video_id:
+        raise RenderError(f"outro is for {outro.video_id!r}, transcript for {transcript.video_id!r}")
+    if outro.end_s > transcript.duration_s + 0.05:
+        raise RenderError(f"outro ends at {outro.end_s} s but {outro.video_id!r} is only "
+                          f"{transcript.duration_s:.3f} s long")
+    p = outro_path(outro.video_id, data)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(outro.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, p)
+    return p
+
+
+def outro_speech(outro: Outro, transcript: Transcript) -> list[Word]:
+    return [w for w in transcript.words if w.end > outro.start_s and w.start < outro.end_s]
+
+
+def outro_audio_until(outro: Outro, transcript: Transcript) -> float:
+    """Seconds into the outro at which its audio has faded to silence: before the first word
+    spoken inside it (Whisper word timestamps), so no sentence starts and gets cut off."""
+    speech = outro_speech(outro, transcript)
+    if not speech:
+        return round(outro.end_s - outro.start_s, 3)
+    return round(max(0.0, speech[0].start - SPEECH_MARGIN_S - outro.start_s), 3)
+
+
+def clip_tail(transcript: Transcript, clip: Clip, max_tail: float) -> float:
+    """How long the clip's sound may carry on under the outro (an L-cut): up to max_tail, ending
+    TAIL_MARGIN_S before the next word Whisper hears after the cut. A word Whisper places across
+    the cut is ignored: where to cut was the human's call when setting the clip end."""
+    nxt = min((w.start for w in transcript.words if w.start >= clip.end_s), default=None)
+    room = max_tail if nxt is None else nxt - clip.end_s - TAIL_MARGIN_S
+    return round(max(MIN_FADE_S, min(max_tail, room)), 3)
+
+
+def outro_graph(geom: BandGeometry, cfg: RenderConfig, inp: int, *, clip_dur: float,
+                outro_dur: float, audio_until: float, clip_tail: float = 0.06) -> str:
+    """Append input `inp` (the outro span) to [mv] + input 0's audio -> [v] and [a].
+
+    Video is a hard cut. The clip's sound carries on for `clip_tail` seconds under the outro's
+    first frames, fading out (input 0 must run that much past the clip), while the outro's own
+    sound starts untouched on its first frame: no dropout at the join (intros often open with a
+    few ms of silence) and the outro's beat stays where it is. The outro always uses the band look
+    so a title card is never cropped, carries no text, and its audio fades to silence at
+    `audio_until`. Loudness is normalised over the joined audio.
+
+    Both parts are cut to whole frames, video and audio alike, so the outro sound starts exactly
+    on its first frame and nothing pushes its beat late."""
+    if audio_until < MIN_FADE_S:
+        ofade = "volume=0"
+    else:
+        d = min(OUTRO_FADE_S, audio_until)
+        ofade = f"afade=t=out:st={audio_until - d:.3f}:d={d:.3f}"
+    n_clip, n_outro = max(1, round(clip_dur * cfg.fps)), max(1, round(outro_dur * cfg.fps))
+    clip_len, outro_len = n_clip / cfg.fps, n_outro / cfg.fps
+    tail = max(MIN_FADE_S, min(clip_tail, outro_len))
+    return (_band(inp, geom, cfg, "o") +
+            f";[obase]trim=end_frame={n_outro},setpts=PTS-STARTPTS,"
+            f"format={cfg.video.pix_fmt},setsar=1[ov];"
+            f"[mv]trim=end_frame={n_clip},setpts=PTS-STARTPTS,setsar=1[mvs];"
+            f"[mvs][ov]concat=n=2:v=1:a=0[v];"
+            f"[0:a:0]apad,atrim=end={clip_len + tail:.4f},asetpts=N/SR/TB[ma];"
+            f"[{inp}:a:0]{ofade},apad,atrim=end={outro_len:.4f},asetpts=N/SR/TB[oa];"
+            f"[ma][oa]acrossfade=d={tail:.4f}:c1=tri:c2=nofade[cat];"
+            f"[cat]loudnorm={cfg.audio.loudnorm},aresample=48000[a]")
 
 
 @dataclass(frozen=True)
@@ -346,6 +439,7 @@ def render_clip(
     hook_style: str = "text",
     personas_dir: Path = tweet.PERSONAS_DIR,
     persona_history: Path = Path("data/personas_used.json"),
+    outro: Outro | None = None,
 ) -> Rendered:
     info = probe(source)
     vstream = next((s for s in info["streams"] if s["codec_type"] == "video"), None)
@@ -381,12 +475,27 @@ def render_clip(
         card = hook_image(hook, cfg, geom)  # libass cannot draw colour emoji
         card_xy = ((cfg.width - card.width) // 2, geom.hook.center - card.height // 2)
     ass_hook = None if layout == "crop" or card is not None else hook
+    main_out = "mv" if outro else "v"
     if layout == "crop":
         plan = crop_plan(src_w, src_h, shots or [], clip)
-        graph = crop_filter_graph(plan, cfg, card_xy)
+        graph = crop_filter_graph(plan, cfg, card_xy, main_out)
     else:
-        graph = filter_graph(geom, cfg, card_xy)
-    subs = build_ass(clip_words(transcript, clip), ass_hook, geom, cfg, dur)
+        graph = filter_graph(geom, cfg, card_xy, main_out)
+    words = clip_words(transcript, clip)
+    outro_dur = outro_meta = None
+    read_s = dur  # how much of the source input 0 reads (more when the clip's sound carries on)
+    if outro:
+        outro_dur = round(outro.end_s - outro.start_s, 3)
+        until = outro_audio_until(outro, transcript)
+        tail = clip_tail(transcript, clip, cfg.outro.clip_tail_s)
+        read_s = dur + tail + 0.1
+        graph += ";" + outro_graph(band_geometry(cfg, src_w, src_h), cfg, 2 if card else 1,
+                                   clip_dur=dur, outro_dur=outro_dur, audio_until=until,
+                                   clip_tail=tail)
+        outro_meta = {"start_s": outro.start_s, "end_s": outro.end_s, "duration_s": outro_dur,
+                      "audio_until_s": until, "clip_tail_s": tail}
+    expected = round(dur + (outro_dur or 0.0), 3)
+    subs = build_ass(words, ass_hook, geom, cfg, dur)
     for top, bottom in text_boxes(subs):
         if top < geom.safe.top or bottom > geom.safe.bottom:
             raise RenderError(f"text box {top}-{bottom} px leaves the safe area")
@@ -405,12 +514,19 @@ def render_clip(
             card.save(tmp / "card.png")
             shutil.copy(tmp / "card.png", out_dir / f"{stem}.card.png")
             card_input = ["-i", "card.png"]
+        if outro:
+            outro_input = ["-ss", f"{outro.start_s:.3f}", "-t", f"{outro_dur:.3f}",
+                           "-i", str(source.resolve())]
+            audio = ["-map", "[v]", "-map", "[a]"]
+        else:
+            outro_input = []
+            audio = ["-map", "[v]", "-map", "0:a:0",
+                     "-af", f"loudnorm={cfg.audio.loudnorm},aresample=48000"]
         cmd = [
             "ffmpeg", "-nostdin", "-hide_banner", "-y",
-            "-ss", f"{clip.start_s:.3f}", "-t", f"{dur:.3f}", "-i", str(source.resolve()),
-            *card_input,
-            "-filter_complex", graph, "-map", "[v]", "-map", "0:a:0",
-            "-af", f"loudnorm={cfg.audio.loudnorm},aresample=48000",
+            "-ss", f"{clip.start_s:.3f}", "-t", f"{read_s:.3f}", "-i", str(source.resolve()),
+            *card_input, *outro_input,
+            "-filter_complex", graph, *audio,
             "-c:v", cfg.video.codec, "-preset", cfg.video.preset, "-crf", str(cfg.video.crf),
             "-pix_fmt", cfg.video.pix_fmt, "-r", str(cfg.fps),
             "-c:a", cfg.audio.codec, "-b:a", cfg.audio.bitrate, "-movflags", "+faststart",
@@ -425,8 +541,9 @@ def render_clip(
         os.replace(tmp / "out.mp4", mp4)
 
     got = duration_s(mp4)
-    if abs(got - dur) > DURATION_TOLERANCE_S:
-        raise RenderError(f"{mp4} is {got:.3f} s, expected {dur:.3f} s (+-{DURATION_TOLERANCE_S})")
+    if abs(got - expected) > DURATION_TOLERANCE_S:
+        raise RenderError(
+            f"{mp4} is {got:.3f} s, expected {expected:.3f} s (+-{DURATION_TOLERANCE_S})")
     meta = {
         "clip_id": clip.id, "campaign": campaign, "source_video": source.as_posix(),
         "start_s": clip.start_s, "end_s": clip.end_s, "duration_s": round(got, 3),
@@ -436,6 +553,7 @@ def render_clip(
         "hook_text": hook if (card is not None or layout != "crop") else None,
         "hook_style": "tweet" if tweet_meta is not None else "text", "tweet": tweet_meta,
         "on_screen_lines": [],
+        "outro": outro_meta,  # span of the same source played after the clip (no text on it)
     }
     (out_dir / f"{stem}.render.json").write_text(json.dumps(meta, indent=2) + "\n")
     return Rendered(mp4, round(got, 3), meta)
@@ -471,7 +589,9 @@ def render_approved(
     campaigns_root: Path = Path("campaigns"),
     data: Path = Path("data"),
     personas_dir: Path = tweet.PERSONAS_DIR,
+    use_outro: bool = True,
 ) -> list[Rendered]:
+    """use_outro: append the video's saved outro (data/outro/<video_id>.json) when there is one."""
     layout = layout or cfg.layout.mode
     hook_style = hook_style or cfg.hook.style
     c = require_reviewed(campaign, campaigns_root)
@@ -501,9 +621,10 @@ def render_approved(
         if not a_path.exists():
             raise RenderError(f"{a_path} not found; run `content-clipper analyze <video>` first")
         shots = ShotAnalysis.model_validate_json(a_path.read_text(encoding="utf-8")).shots
+    outro = load_outro(video_id, data) if use_outro else None
     out_dir = data / "out" / campaign / video_id
     return [render_clip(x, source=source, transcript=transcript, rules=c.rules,
                         campaign=campaign, cfg=cfg, out_dir=out_dir, layout=layout, shots=shots,
                         hook_style=hook_style, personas_dir=personas_dir,
-                        persona_history=data / "personas_used.json")
+                        persona_history=data / "personas_used.json", outro=outro)
             for x in todo]

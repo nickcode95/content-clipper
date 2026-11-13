@@ -257,10 +257,57 @@ def choose_hooks(
     variants = [base.model_copy(update={"id": f"{base.id}-{k}", "hook_line": h,
                                         "variant_of": base.id, "title": f"{base.title} (hook {k})"})
                 for k, h in enumerate(hooks[1:], start=2)]
-    rest = [x for x in clips.clips if x.variant_of != base.id]
+    # Replace only this command's numbered variants (<id>-2, -3...); keep named ones (add-hook).
+    numbered = re.compile(rf"{re.escape(base.id)}-\d+")
+    rest = [x for x in clips.clips if not (x.variant_of == base.id and numbered.fullmatch(x.id))]
     i = rest.index(base) + 1
     clips.clips = rest[:i] + variants + rest[i:]
     tmp = clips_path.with_name(clips_path.name + ".tmp")
     tmp.write_text(clips.model_dump_json(indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, clips_path)
     return [base, *variants]
+
+
+VARIANT_NAME = re.compile(r"[a-z][a-z0-9-]{0,30}")
+
+
+def add_hook_variant(
+    clips_path: Path,
+    clip_id: str,
+    text: str,
+    name: str,
+    *,
+    data: Path = Path("data"),
+    campaigns_root: Path = Path("campaigns"),
+    research_dir: Path = RESEARCH_DIR,
+) -> Clip:
+    """Human choice: add ONE named variant `<clip_id>-<name>` with this hook text.
+
+    Same cut and approval as the clip; the clip and its other variants are left alone. Re-using a
+    name replaces that variant's hook. The text gets the same code checks as any hook.
+    """
+    if not VARIANT_NAME.fullmatch(name) or name.isdigit():
+        raise HookError(f"variant name {name!r}: use lowercase letters, digits and dashes, "
+                        "starting with a letter")
+    clips = ClipsFile.model_validate_json(clips_path.read_text(encoding="utf-8"))
+    base = next((x for x in clips.clips if x.id == clip_id and x.variant_of is None), None)
+    if base is None:
+        raise HookError(f"no clip {clip_id!r} in {clips_path} (add variants to the original clip)")
+    c = require_reviewed(clips.campaign, campaigns_root)
+    transcript = Transcript.model_validate_json(
+        (data / "transcripts" / f"{clips.video_id}.json").read_text(encoding="utf-8"))
+    trend = load_trend_brief(clips.campaign, research_dir)
+    kept, bad = valid_options([text], c=c, narration=clip_narration(transcript, base),
+                              research_n=research_text(trend), names=reference_names(trend))
+    if bad:
+        raise HookError(f"hook rejected: {bad[0]}")
+    vid = f"{base.id}-{name}"
+    variant = base.model_copy(update={"id": vid, "hook_line": kept[0], "variant_of": base.id,
+                                      "title": f"{base.title} ({name})"})
+    others = [x for x in clips.clips if x.id != vid]
+    i = max(j for j, x in enumerate(others) if x.id == base.id or x.variant_of == base.id) + 1
+    clips.clips = others[:i] + [variant] + others[i:]
+    tmp = clips_path.with_name(clips_path.name + ".tmp")
+    tmp.write_text(clips.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, clips_path)
+    return variant

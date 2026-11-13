@@ -118,6 +118,12 @@ class MusicCfg(_M):
     fade_s: float
 
 
+class OutroCfg(_M):
+    # L-cut: the clip's sound carries on this long under the outro's first frames, fading out,
+    # so the join has no dropout. Short keeps the outro's beat and stays clear of next words.
+    clip_tail_s: float = Field(default=0.05, ge=0.01, le=0.5)
+
+
 class RenderConfig(_M):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
@@ -128,6 +134,7 @@ class RenderConfig(_M):
     hook: HookStyleCfg
     layout: LayoutCfg = Field(default_factory=LayoutCfg)
     music: MusicCfg
+    outro: OutroCfg = Field(default_factory=OutroCfg)
 
 
 def load_render_config(path: Path = CONFIG_DIR / "render.yaml") -> RenderConfig:

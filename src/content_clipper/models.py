@@ -261,6 +261,21 @@ class Clip(_Strict):
     approved: bool | None = None  # set by a human; render only uses approved == true
 
 
+class Outro(_Strict):
+    """A span of the source video (e.g. its title card) played after every rendered clip of it.
+    Set by a human with `set-outro`; stored in data/outro/<video_id>.json."""
+
+    video_id: str
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> Outro:
+        if self.end_s - self.start_s < 0.2:
+            raise ValueError(f"outro {self.start_s}-{self.end_s} s is shorter than 0.2 s")
+        return self
+
+
 class RejectedCandidate(_Strict):
     start_shot: int
     end_shot: int

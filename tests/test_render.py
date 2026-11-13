@@ -250,3 +250,109 @@ def test_crop_render_adds_files_without_touching_band_renders(ws):
     assert meta["layout"] == "crop" and meta["hook_text"] is None
     assert [x for _, x in meta["crop"]["xs"]] == [822, 438]  # 404 px crop: focus 0.8, then centre
     assert abs(crop[0].duration_s - 2.2) <= 0.1
+
+
+# ---------------------------------------------------------------- outro
+
+
+def test_outro_audio_stops_before_speech_inside_it():
+    from content_clipper.models import Outro
+    from content_clipper.render.core import (
+        SPEECH_MARGIN_S,
+        outro_audio_until,
+        outro_speech,
+    )
+
+    t = transcript()  # words: before 0.2-0.6 ... now. 2.55-2.9, after 3.6-3.9
+    quiet = Outro(video_id="v", start_s=3.0, end_s=3.5)
+    assert outro_speech(quiet, t) == [] and outro_audio_until(quiet, t) == 0.5
+    talky = Outro(video_id="v", start_s=3.0, end_s=4.0)
+    assert [w.w for w in outro_speech(talky, t)] == ["after"]
+    assert outro_audio_until(talky, t) == pytest.approx(0.6 - SPEECH_MARGIN_S)
+    assert outro_audio_until(Outro(video_id="v", start_s=0.0, end_s=1.0), t) == pytest.approx(0.05)
+    with pytest.raises(ValueError, match="shorter than"):
+        Outro(video_id="v", start_s=2.0, end_s=2.1)
+
+
+def test_outro_graph_mutes_when_speech_starts_at_once():
+    from content_clipper.render.core import outro_graph
+
+    g = band_geometry(CFG, 1920, 1080)
+    graph = outro_graph(g, CFG, 1, clip_dur=2.2, outro_dur=1.0, audio_until=0.45, clip_tail=0.06)
+    # L-cut: video hard-cuts, the clip's sound runs 60 ms under the outro, the outro's is untouched
+    assert "[mvs][ov]concat=n=2:v=1:a=0[v]" in graph
+    assert "[0:a:0]apad,atrim=end=2.2600," in graph
+    assert "acrossfade=d=0.0600:c1=tri:c2=nofade[cat]" in graph
+    assert "afade=t=out:st=0.150:d=0.300" in graph and "[1:v]" in graph and "[1:a:0]" in graph
+    assert graph.endswith("[a]") and "ass=" not in graph  # no text on the outro
+    # a cut between frames: video and audio both end on the same whole frame (no gap at the join)
+    odd = outro_graph(g, CFG, 1, clip_dur=22.067, outro_dur=2.033, audio_until=1.21)
+    assert "[mv]trim=end_frame=662," in odd and "atrim=end=22.1267," in odd  # 662/30 + 0.06
+    assert "trim=end_frame=61," in odd and "atrim=end=2.0333," in odd
+    assert "volume=0" in outro_graph(g, CFG, 2, clip_dur=2.2, outro_dur=1.0, audio_until=0.0)
+
+
+def test_clip_tail_stays_clear_of_the_next_word():
+    from content_clipper.render.core import MIN_FADE_S, TAIL_MARGIN_S, clip_tail
+
+    t = transcript()  # ... it 2.35-2.5, now. 2.55-2.9, after 3.6-3.9
+    assert clip_tail(t, clip(end_s=3.2), 0.06) == 0.06  # "after" is far away
+    # "it" spans the cut and is ignored (the human chose that cut); "now." at 2.55 s limits it
+    assert clip_tail(t, clip(end_s=2.45), 0.06) == pytest.approx(0.05)
+    assert clip_tail(t, clip(end_s=2.5), 0.06) == MIN_FADE_S  # "now." starts 50 ms later
+    assert clip_tail(t, clip(end_s=2.4), 0.2) == pytest.approx(2.55 - 2.4 - TAIL_MARGIN_S)
+    assert clip_tail(t, clip(end_s=3.95), 0.06) == 0.06  # nothing spoken after the cut
+
+
+def test_save_outro_checks_the_video(tmp_path):
+    from content_clipper.models import Outro
+    from content_clipper.render.core import load_outro, save_outro
+
+    t = transcript()
+    with pytest.raises(RenderError, match="only 4.000 s long"):
+        save_outro(Outro(video_id="v", start_s=3.0, end_s=5.0), t, tmp_path)
+    with pytest.raises(RenderError, match="transcript for"):
+        save_outro(Outro(video_id="w", start_s=0.0, end_s=1.0), t, tmp_path)
+    assert load_outro("v", tmp_path) is None
+    save_outro(Outro(video_id="v", start_s=3.0, end_s=4.0), t, tmp_path)
+    assert load_outro("v", tmp_path).end_s == 4.0
+
+
+def _rms_db(path, start, dur):
+    out = subprocess.run(
+        ["ffmpeg", "-nostdin", "-hide_banner", "-ss", str(start), "-t", str(dur), "-i", str(path),
+         "-af", "astats=measure_perchannel=none", "-f", "null", "-"],
+        capture_output=True, text=True, check=True).stderr
+    level = [ln.split(":")[-1].strip() for ln in out.splitlines() if "RMS level dB" in ln][-1]
+    return float("-inf") if level == "-inf" else float(level)
+
+
+@needs_ffmpeg
+def test_render_appends_the_outro_in_both_layouts(ws):
+    from content_clipper.models import Outro
+    from content_clipper.render.core import save_outro
+
+    set_approval(ws / "data/clips/v.clips.json", ["c01"], True)
+    # source 3.0-4.0 s: "after" is spoken at 3.6 s, so the outro audio must be silent by then
+    save_outro(Outro(video_id="v", start_s=3.0, end_s=4.0), transcript(), ws / "data")
+    [r] = render_approved("acme-launch-trailer", "v", cfg=CFG)
+    assert abs(r.duration_s - 3.2) <= 0.1  # 2.2 s clip + 1.0 s outro
+    assert r.render_json["outro"] == {"start_s": 3.0, "end_s": 4.0, "duration_s": 1.0,
+                                      "audio_until_s": 0.45,
+                                      "clip_tail_s": CFG.outro.clip_tail_s}
+    assert _rms_db(r.path, 2.17, 0.08) > -30  # no dropout at the join (2.2 s)
+    assert _rms_db(r.path, 2.25, 0.15) > -40  # outro sound plays ...
+    assert _rms_db(r.path, 2.75, 0.4) < -60  # ... and is silent before the spoken word
+
+    adir = ws / "data/analysis/v"
+    adir.mkdir(parents=True)
+    from content_clipper.models import ShotAnalysis
+
+    a = ShotAnalysis(video="data/sources/v.mp4", video_id="v", duration_s=4.0, analysis_fps=30,
+                     shots=[shot(0, 0, 4, 0.5)])
+    (adir / "shots.json").write_text(a.model_dump_json())
+    [c] = render_approved("acme-launch-trailer", "v", cfg=CFG, layout="crop")
+    assert abs(c.duration_s - 3.2) <= 0.1 and c.render_json["outro"]["end_s"] == 4.0
+
+    [plain] = render_approved("acme-launch-trailer", "v", cfg=CFG, use_outro=False)
+    assert abs(plain.duration_s - 2.2) <= 0.1 and plain.render_json["outro"] is None

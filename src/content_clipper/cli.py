@@ -282,6 +282,8 @@ def render(
     hook_style: Annotated[str | None, typer.Option(
         help="text or tweet (tweet-style card with a persona from assets/personas/). "
              "Default: hook.style in config/render.yaml.")] = None,
+    outro: Annotated[bool, typer.Option(
+        help="Append the video's outro saved with set-outro (if any).")] = True,
 ) -> None:
     """Render CAMPAIGN's approved clips of VIDEO_ID to data/out/<campaign>/<video_id>/."""
     import time
@@ -295,11 +297,14 @@ def render(
         _fail(f"unknown hook style {style!r}: use text or tweet")
     detail = ("action-following crop, captions only" if chosen == "crop" else
               f"{cfg.layout.background} background, hook {cfg.layout.hook_position}")
+    saved = rnd.load_outro(video_id) if outro else None
+    if saved:
+        detail += f", outro {saved.start_s:.2f}-{saved.end_s:.2f} s"
     typer.echo(f"Rendering approved clips of {video_id} ({chosen} layout, {detail}) ...")
     t0 = time.perf_counter()
     try:
         done = rnd.render_approved(campaign, video_id, cfg=cfg, only=clip or None, layout=chosen,
-                                   hook_style=style)
+                                   hook_style=style, use_outro=outro)
     except (store.CampaignError, rnd.RenderError, ValidationError) as e:
         _fail(str(e))
     for r in done:
@@ -308,6 +313,58 @@ def render(
         typer.echo(f"{r.render_json['clip_id']}  {r.duration_s:5.2f} s  {r.path}{who}")
     typer.echo(f"wall time {time.perf_counter() - t0:.1f} s for {len(done)} clip(s)")
 
+
+
+@app.command("set-outro")
+def set_outro(
+    video_id: Annotated[str, typer.Argument(help="Source file stem, as in data/transcripts/.")],
+    start: Annotated[float | None, typer.Argument(help="Outro start in the source, seconds.")] = None,
+    end: Annotated[float | None, typer.Argument(help="Outro end in the source, seconds.")] = None,
+    clear: Annotated[bool, typer.Option(help="Remove the saved outro.")] = False,
+) -> None:
+    """Play START-END of VIDEO_ID (e.g. its intro title card) after every rendered clip of it.
+
+    With no times, shows the saved outro and the video's first shots to choose from."""
+    from content_clipper.models import Outro, ShotAnalysis, Transcript
+
+    path = rnd.outro_path(video_id)
+    if clear:
+        path.unlink(missing_ok=True)
+        typer.echo(f"No outro for {video_id}.")
+        return
+    t_path = Path("data/transcripts") / f"{video_id}.json"
+    if not t_path.exists():
+        _fail(f"{t_path} not found; run `content-clipper transcribe <video>` first")
+    transcript = Transcript.model_validate_json(t_path.read_text(encoding="utf-8"))
+    a_path = Path("data/analysis") / video_id / "shots.json"
+    shots = (ShotAnalysis.model_validate_json(a_path.read_text(encoding="utf-8")).shots
+             if a_path.exists() else [])
+    if start is None or end is None:
+        if start is not None:
+            _fail("give both START and END")
+        current = rnd.load_outro(video_id)
+        typer.echo(f"Outro: {current.start_s:.3f}-{current.end_s:.3f} s" if current else
+                   "No outro saved. Set one with: content-clipper set-outro <video_id> START END")
+        if shots:
+            typer.echo("First shots (keyframes in " + str(a_path.parent) + "):")
+            for s in shots[:8]:
+                typer.echo(f"  shot {s.id:3d}  {s.start:7.3f}-{s.end:7.3f} s  {s.keyframe}")
+        return
+    try:
+        o = Outro(video_id=video_id, start_s=start, end_s=end)
+        rnd.save_outro(o, transcript)
+    except (ValidationError, rnd.RenderError) as e:
+        _fail(str(e))
+    typer.echo(f"Outro for {video_id}: {o.start_s:.3f}-{o.end_s:.3f} s "
+               f"({o.end_s - o.start_s:.2f} s), saved to {path}")
+    inside = [s for s in shots if s.end > o.start_s + 0.01 and s.start < o.end_s - 0.01]
+    if inside:
+        typer.echo("Shots: " + ", ".join(f"{s.id} ({s.start:.3f}-{s.end:.3f})" for s in inside))
+    speech = rnd.outro_speech(o, transcript)
+    if speech:
+        typer.echo(f"Speech inside it ({' '.join(w.w for w in speech[:6])} ...): the outro audio "
+                   f"fades to silence {rnd.outro_audio_until(o, transcript):.2f} s in.")
+    typer.echo("render appends it to every clip of this video (--no-outro to skip).")
 
 
 def _print_hooks(c) -> None:
@@ -372,6 +429,23 @@ def hooks(
         for r in rejected.get(c.id, []):
             typer.echo(f"     rejected: {r}")
     typer.echo(f"\n* = current hook. Choose with: content-clipper pick-hook {video_id!r} c01 2")
+
+
+@app.command("add-hook")
+def add_hook_cmd(
+    video_id: str,
+    clip_id: str,
+    text: Annotated[str, typer.Argument(help="Hook text (emoji welcome).")],
+    name: Annotated[str, typer.Option("--name", help="Variant name: the clip becomes "
+                                      "<clip_id>-<name>, e.g. c02-fire-emoji.")],
+) -> None:
+    """Add one named hook variant of CLIP_ID (same cut); the clip and other variants stay."""
+    try:
+        v = hk.add_hook_variant(Path("data/clips") / f"{video_id}.clips.json", clip_id, text, name)
+    except (hk.HookError, store.CampaignError, FileNotFoundError) as e:
+        _fail(str(e))
+    typer.echo(f"{v.id:16s} hook: {v.hook_line}")
+    typer.echo(f"Render it with: content-clipper render <campaign> {video_id!r} --clip {v.id}")
 
 
 @app.command("pick-hook")
